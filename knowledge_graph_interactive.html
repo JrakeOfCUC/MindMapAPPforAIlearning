@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>CSV知识图谱可视化</title>
+	<script type="text/javascript" src="vis-network.min.js"></script>
+	<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/standalone/umd/vis-network.min.js"></script>
+	<script type="text/javascript" src="https://unpkg.com/vis-network@9.1.2/standalone/umd/vis-network.min.js"></script>
+	<style>
+		* {
+			box-sizing: border-box;
+		}
+		:root {
+			--bg-0: #f1f5f9;
+			--bg-1: #e2e8f0;
+			--panel: rgba(255, 255, 255, 0.85);
+			--line: #cbd5e1;
+			--accent: #0ea5e9;
+			--accent-soft: #bae6fd;
+			--text: #0f172a;
+			--text-light: #64748b;
+		}
+		body {
+			margin: 0;
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft YaHei", sans-serif;
+			background: linear-gradient(135deg, var(--bg-0), var(--bg-1));
+			color: var(--text);
+			height: 100vh;
+			overflow: hidden;
+			line-height: 1.5;
+		}
+		.topbar {
+			padding: 16px 24px;
+			background: var(--panel);
+			border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+			position: sticky;
+			top: 0;
+			z-index: 10;
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 16px;
+			box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+		}
+		.title {
+			margin: 0;
+			font-size: 22px;
+			font-weight: 800;
+			color: #0284c7;
+			letter-spacing: 0.5px;
+		}
+		.meta {
+			margin-top: 4px;
+			font-size: 13px;
+			color: var(--text-light);
+			font-weight: 500;
+		}
+		.layout {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+			height: calc(100vh - 76px);
+			min-width: 0;
+		}
+		#graph {
+			width: 100%;
+			height: 100%;
+			min-width: 0;
+			min-height: 0;
+			background: radial-gradient(circle at 15% 20%, #ffffff 0%, #f4f9ff 45%, #e6f3ff 100%);
+		}
+		.graph-error {
+			padding: 16px;
+			margin: 16px;
+			border: 1px solid #fecdd3;
+			border-radius: 12px;
+			background: #fff1f2;
+			color: #be123c;
+			font-size: 14px;
+			line-height: 1.6;
+			box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+		}
+		.sidebar {
+			border-left: 1px solid var(--line);
+			background: rgba(255, 255, 255, 0.4);
+			backdrop-filter: blur(10px);
+			-webkit-backdrop-filter: blur(10px);
+			overflow-y: auto;
+			overflow-x: hidden;
+			padding: 20px;
+			display: grid;
+			gap: 16px;
+			min-width: 0;
+			width: 100%;
+			align-content: start;
+		}
+		.card {
+			border: 1px solid rgba(255, 255, 255, 0.7);
+			border-radius: 16px;
+			padding: 20px;
+			background: rgba(255, 255, 255, 0.9);
+			min-width: 0;
+			box-shadow: 0 4px 15px -1px rgb(0 0 0 / 0.03);
+			backdrop-filter: blur(8px);
+			transition: transform 0.2s ease, box-shadow 0.2s ease;
+		}
+		.card:hover {
+			transform: translateY(-2px);
+			box-shadow: 0 8px 20px -2px rgb(0 0 0 / 0.06);
+		}
+		.card h3 {
+			margin: 0 0 16px;
+			font-size: 16px;
+			font-weight: 700;
+			color: #0369a1;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+		.card h3::before {
+			content: '';
+			display: inline-block;
+			width: 4px;
+			height: 1em;
+			background: var(--accent);
+			border-radius: 4px;
+		}
+		.row {
+			display: grid;
+			gap: 8px;
+			margin-top: 12px;
+		}
+		label {
+			font-size: 13px;
+			color: #334155;
+			font-weight: 500;
+		}
+		input, select, button {
+			font-family: inherit;
+			font-size: 13px;
+		}
+		input, select {
+			padding: 10px 12px;
+			border: 1px solid #94a3b8;
+			border-radius: 8px;
+			outline: none;
+			background: rgba(255, 255, 255, 0.9);
+			width: 100%;
+			transition: all 0.2s ease;
+		}
+		input:focus, select:focus {
+			border-color: var(--accent);
+			box-shadow: 0 0 0 3px var(--accent-soft);
+			background: #ffffff;
+		}
+		button {
+			padding: 10px 16px;
+			border: 1px solid #cbd5e1;
+			background: #f8fafc;
+			border-radius: 8px;
+			cursor: pointer;
+			color: #334155;
+			font-weight: 600;
+			width: 100%;
+			transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+		}
+		button:hover {
+			background: #f1f5f9;
+			border-color: #94a3b8;
+			transform: translateY(-1px);
+			box-shadow: 0 2px 4px rgb(0 0 0 / 0.05);
+		}
+		button.primary {
+			background: var(--accent);
+			color: #fff;
+			border: none;
+			box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+		}
+		button.primary:hover {
+			background: #0284c7;
+			box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+		}
+		.actions {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 12px;
+			margin-top: 4px;
+		}
+		.component-list {
+			max-height: 160px;
+			overflow-y: auto;
+			border: 1px dashed #94a3b8;
+			border-radius: 8px;
+			padding: 8px;
+			display: grid;
+			gap: 8px;
+			background: rgba(248, 250, 252, 0.6);
+		}
+		.component-item {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			font-size: 13px;
+			padding: 6px;
+			border-radius: 6px;
+			background: rgba(255, 255, 255, 0.5);
+			transition: background 0.2s;
+		}
+		.component-item:hover {
+			background: rgba(255, 255, 255, 0.9);
+			box-shadow: 0 1px 3px rgb(0 0 0 / 0.05);
+		}
+		.hint {
+			font-size: 12px;
+			color: var(--text-light);
+			line-height: 1.4;
+		}
+		@media (max-width: 960px) {
+			.layout {
+				grid-template-columns: 1fr;
+				height: auto;
+			}
+			#graph {
+				height: 62vh;
+			}
+			.sidebar {
+				border-left: none;
+				border-top: 1px solid var(--line);
+				width: 100%;
+			}
+		}
+		.small {
+			font-size: 13px;
+			color: var(--text-light);
+			font-weight: 500;
+		}
+	</style>
+</head>
+<body>
+	<div class="topbar">
+		<div>
+			<h1 class="title">CSV知识图谱可视化</h1>
+			<div class="meta" id="metaStats">节点数: 335 | 关系数: 337 | 图谱分区: 7</div>
+		</div>
+		<div class="small">交互模式: 侧边栏创建 + 搜索过滤 + 分区显隐</div>
+	</div>
+	<div class="layout">
+		<div id="graph"></div>
+		<aside class="sidebar">
+			<section class="card">
+				<h3>图谱分区控制</h3>
+				<div class="hint">完全不相关的子图会自动分区显示，可单独显隐。</div>
+				<div class="actions" style="margin-top:8px;">
+					<button class="primary" id="enablePagedMode">按页浏览</button>
+					<button id="enableOverviewMode">总览模式</button>
+				</div>
+				<div class="row" style="margin-top:8px;">
+					<label for="pageComponentSelect">分区页码</label>
+					<select id="pageComponentSelect"></select>
+					<div class="actions">
+						<button id="prevPageBtn">上一页</button>
+						<button id="nextPageBtn">下一页</button>
+					</div>
+					<div class="small" id="pageInfo">分页模式已开启</div>
+				</div>
+			</section>
+
+			<section class="card">
+				<h3>节点搜索</h3>
+				<div class="row">
+					<label for="searchInput">关键词</label>
+					<input id="searchInput" type="text" placeholder="输入节点名称关键词" />
+					<div class="actions">
+						<button class="primary" id="searchBtn">过滤显示</button>
+						<button id="clearSearchBtn">清空搜索</button>
+					</div>
+					<div class="small" id="searchInfo">当前未启用搜索过滤</div>
+				</div>
+			</section>
+
+			<section class="card">
+				<h3>添加节点</h3>
+				<div class="row">
+					<label for="newNodeLabel">节点名称</label>
+					<input id="newNodeLabel" type="text" placeholder="例如：音频中间件" />
+					<label for="newNodeDesc">节点描述（可选）</label>
+					<input id="newNodeDesc" type="text" placeholder="用于悬浮提示" />
+					<button class="primary" id="addNodeBtn">新增节点</button>
+				</div>
+			</section>
+
+			<section class="card">
+				<h3>添加关系</h3>
+				<div class="row">
+					<label for="relSource">起点节点</label>
+					<input id="relSource" list="nodeNameList" type="text" placeholder="输入节点名称" />
+					<label for="relTarget">终点节点</label>
+					<input id="relTarget" list="nodeNameList" type="text" placeholder="输入节点名称" />
+					<label for="relLabel">关系名称</label>
+					<input id="relLabel" type="text" placeholder="例如：支持/依赖/提升" />
+					<label for="relDirection">关系类型</label>
+					<select id="relDirection">
+						<option value="directed">有向关系</option>
+						<option value="undirected">无向关系</option>
+					</select>
+					<button class="primary" id="addRelationBtn">新增关系</button>
+				</div>
+			</section>
+
+			<section class="card">
+				<h3>保存与导出</h3>
+				<div class="hint">先在前端临时编辑，再按需导出为文件。</div>
+				<div class="actions" style="margin-top:8px;">
+					<button id="exportJsonBtn">导出 JSON</button>
+					<button id="exportCsvBtn">导出 CSV</button>
+				</div>
+			</section>
+
+			<datalist id="nodeNameList" style="display:none;"></datalist>
+		</aside>
+	</div>
+	<script>
+		if (typeof vis === "undefined") {
+			const graph = document.getElementById("graph");
+			graph.innerHTML = '<div class="graph-error">图谱渲染库 vis-network 加载失败。<br/>请检查网络后刷新页面，或稍后重试。</div>';
+			throw new Error("vis-network failed to load from CDN sources");
+		}
+
+		const initialNodes = [{"id": 1, "label": "AIGC视觉内容生成", "title": "AIGC视觉内容生成", "component": 1}, {"id": 2, "label": "深度学习", "title": "深度学习", "component": 1}, {"id": 3, "label": "计算机视觉", "title": "计算机视觉", "component": 1}, {"id": 4, "label": "扩散模型", "title": "扩散模型", "component": 1}, {"id": 5, "label": "生成对抗网络", "title": "生成对抗网络", "component": 1}, {"id": 6, "label": "变分自编码器", "title": "变分自编码器", "component": 1}, {"id": 7, "label": "Transformer", "title": "Transformer", "component": 1}, {"id": 8, "label": "ControlNet", "title": "ControlNet", "component": 1}, {"id": 9, "label": "超分辨率网络", "title": "超分辨率网络", "component": 1}, {"id": 10, "label": "目标检测与关键点提取", "title": "目标检测与关键点提取", "component": 1}, {"id": 11, "label": "获取控制输入", "title": "获取控制输入", "component": 1}, {"id": 12, "label": "图像风格迁移", "title": "图像风格迁移", "component": 1}, {"id": 13, "label": "融入传统纹样", "title": "融入传统纹样", "component": 1}, {"id": 14, "label": "时空注意力机制", "title": "时空注意力机制", "component": 1}, {"id": 15, "label": "动态连贯", "title": "动态连贯", "component": 1}, {"id": 16, "label": "AI实时同声字幕生成", "title": "AI实时同声字幕生成", "component": 1}, {"id": 17, "label": "自然语言处理", "title": "自然语言处理", "component": 1}, {"id": 18, "label": "工程优化", "title": "工程优化", "component": 1}, {"id": 19, "label": "端到端语音识别", "title": "端到端语音识别", "component": 1}, {"id": 20, "label": "音频转文字", "title": "音频转文字", "component": 1}, {"id": 21, "label": "Transformer/Conformer", "title": "Transformer/Conformer", "component": 1}, {"id": 22, "label": "大语言模型", "title": "大语言模型", "component": 1}, {"id": 23, "label": "语义纠错", "title": "语义纠错", "component": 1}, {"id": 24, "label": "预训练微调", "title": "预训练微调", "component": 1}, {"id": 25, "label": "自动语音识别", "title": "自动语音识别", "component": 1}, {"id": 26, "label": "语音转文字", "title": "语音转文字", "component": 1}, {"id": 27, "label": "同音字问题", "title": "同音字问题", "component": 1}, {"id": 28, "label": "命名实体识别", "title": "命名实体识别", "component": 1}, {"id": 29, "label": "识别专有名词", "title": "识别专有名词", "component": 1}, {"id": 30, "label": "分词断句", "title": "分词断句", "component": 1}, {"id": 31, "label": "合理分句", "title": "合理分句", "component": 1}, {"id": 32, "label": "流式推理", "title": "流式推理", "component": 1}, {"id": 33, "label": "低延迟(<3秒)", "title": "低延迟(<3秒)", "component": 1}, {"id": 34, "label": "多模态对齐", "title": "多模态对齐", "component": 1}, {"id": 35, "label": "音字画同步", "title": "音字画同步", "component": 1}, {"id": 36, "label": "春晚具身智能机器人技术", "title": "春晚具身智能机器人技术", "component": 1}, {"id": 37, "label": "高精度激光SLAM与实时定位", "title": "高精度激光SLAM与实时定位", "component": 1}, {"id": 38, "label": "控制算法", "title": "控制算法", "component": 1}, {"id": 39, "label": "武术高难度动作与精细操作", "title": "武术高难度动作与精细操作", "component": 1}, {"id": 40, "label": "机器学习技术", "title": "机器学习技术", "component": 1}, {"id": 41, "label": "深度学习技术", "title": "深度学习技术", "component": 1}, {"id": 42, "label": "多传感器融合定位", "title": "多传感器融合定位", "component": 1}, {"id": 43, "label": "激光雷达数据", "title": "激光雷达数据", "component": 1}, {"id": 44, "label": "IMU数据", "title": "IMU数据", "component": 1}, {"id": 45, "label": "视觉相机数据", "title": "视觉相机数据", "component": 1}, {"id": 46, "label": "贝叶斯滤波", "title": "贝叶斯滤波", "component": 1}, {"id": 47, "label": "粒子滤波", "title": "粒子滤波", "component": 1}, {"id": 48, "label": "卡尔曼滤波", "title": "卡尔曼滤波", "component": 1}, {"id": 49, "label": "毫米级定位误差(±1mm)", "title": "毫米级定位误差(±1mm)", "component": 1}, {"id": 50, "label": "点云特征提取", "title": "点云特征提取", "component": 1}, {"id": 51, "label": "传统机器学习算法", "title": "传统机器学习算法", "component": 1}, {"id": 52, "label": "ICP配准算法", "title": "ICP配准算法", "component": 1}, {"id": 53, "label": "NDT配准算法", "title": "NDT配准算法", "component": 1}, {"id": 54, "label": "轻量CNN", "title": "轻量CNN", "component": 1}, {"id": 55, "label": "快速构建舞台3D地图", "title": "快速构建舞台3D地图", "component": 1}, {"id": 56, "label": "语义SLAM", "title": "语义SLAM", "component": 1}, {"id": 57, "label": "CNN/Transformer", "title": "CNN/Transformer", "component": 1}, {"id": 58, "label": "识别舞台边界", "title": "识别舞台边界", "component": 1}, {"id": 59, "label": "识别同伴机器人", "title": "识别同伴机器人", "component": 1}, {"id": 60, "label": "识别真人演员", "title": "识别真人演员", "component": 1}, {"id": 61, "label": "避免碰撞", "title": "避免碰撞", "component": 1}, {"id": 62, "label": "决策", "title": "决策", "component": 1}, {"id": 63, "label": "视觉-激光深度估计", "title": "视觉-激光深度估计", "component": 1}, {"id": 64, "label": "单目视觉网络", "title": "单目视觉网络", "component": 1}, {"id": 65, "label": "双目视觉网络", "title": "双目视觉网络", "component": 1}, {"id": 66, "label": "补全激光点云盲区", "title": "补全激光点云盲区", "component": 1}, {"id": 67, "label": "环境感知完整性", "title": "环境感知完整性", "component": 1}, {"id": 68, "label": "强化学习技术", "title": "强化学习技术", "component": 1}, {"id": 69, "label": "分布式模型预测控制(DMPC)", "title": "分布式模型预测控制(DMPC)", "component": 1}, {"id": 70, "label": "线性回归", "title": "线性回归", "component": 1}, {"id": 71, "label": "非线性回归", "title": "非线性回归", "component": 1}, {"id": 72, "label": "预测自身状态", "title": "预测自身状态", "component": 1}, {"id": 73, "label": "预测邻居状态", "title": "预测邻居状态", "component": 1}, {"id": 74, "label": "优化动作轨迹", "title": "优化动作轨迹", "component": 1}, {"id": 75, "label": "同步误差控制在0.1秒内", "title": "同步误差控制在0.1秒内", "component": 1}, {"id": 76, "label": "多智能体强化学习(MARL)", "title": "多智能体强化学习(MARL)", "component": 1}, {"id": 77, "label": "动作同步度为奖励函数", "title": "动作同步度为奖励函数", "component": 1}, {"id": 78, "label": "无碰撞为奖励函数", "title": "无碰撞为奖励函数", "component": 1}, {"id": 79, "label": "队形完整为奖励函数", "title": "队形完整为奖励函数", "component": 1}, {"id": 80, "label": "自主学习最优协同策略", "title": "自主学习最优协同策略", "component": 1}, {"id": 81, "label": "通信感知强化学习", "title": "通信感知强化学习", "component": 1}, {"id": 82, "label": "5G带宽分配", "title": "5G带宽分配", "component": 1}, {"id": 83, "label": "边缘计算带宽分配", "title": "边缘计算带宽分配", "component": 1}, {"id": 84, "label": "低延迟共享状态信息", "title": "低延迟共享状态信息", "component": 1}, {"id": 85, "label": "动作模仿学习(Imitation Learning)", "title": "动作模仿学习(Imitation Learning)", "component": 1}, {"id": 86, "label": "人类武术动作视频数据", "title": "人类武术动作视频数据", "component": 1}, {"id": 87, "label": "基础动作轨迹", "title": "基础动作轨迹", "component": 1}, {"id": 88, "label": "劈", "title": "劈", "component": 1}, {"id": 89, "label": "砸", "title": "砸", "component": 1}, {"id": 90, "label": "挑", "title": "挑", "component": 1}, {"id": 91, "label": "舞剑", "title": "舞剑", "component": 1}, {"id": 92, "label": "端到端运动控制网络", "title": "端到端运动控制网络", "component": 1}, {"id": 93, "label": "CNN+LSTM/Transformer", "title": "CNN+LSTM/Transformer", "component": 1}, {"id": 94, "label": "感知输入至关节力矩指令", "title": "感知输入至关节力矩指令", "component": 1}, {"id": 95, "label": "感知输入", "title": "感知输入", "component": 2}, {"id": 96, "label": "姿态", "title": "姿态", "component": 2}, {"id": 97, "label": "环境", "title": "环境", "component": 2}, {"id": 98, "label": "动态平衡", "title": "动态平衡", "component": 1}, {"id": 99, "label": "AI智能舞台灯光与机械协同控制技术", "title": "AI智能舞台灯光与机械协同控制技术", "component": 3}, {"id": 100, "label": "AI智能舞台灯光控制技术", "title": "AI智能舞台灯光控制技术", "component": 3}, {"id": 101, "label": "舞台机械协同控制技术", "title": "舞台机械协同控制技术", "component": 3}, {"id": 102, "label": "计算机视觉动作识别", "title": "计算机视觉动作识别", "component": 3}, {"id": 103, "label": "强化学习控制算法", "title": "强化学习控制算法", "component": 3}, {"id": 104, "label": "毫米级同步控制技术", "title": "毫米级同步控制技术", "component": 3}, {"id": 105, "label": "灯光色温调节技术", "title": "灯光色温调节技术", "component": 3}, {"id": 106, "label": "灯光亮度调节技术", "title": "灯光亮度调节技术", "component": 3}, {"id": 107, "label": "投射角度控制技术", "title": "投射角度控制技术", "component": 3}, {"id": 108, "label": "舞台机械轨迹规划", "title": "舞台机械轨迹规划", "component": 3}, {"id": 109, "label": "实时调度与联动技术", "title": "实时调度与联动技术", "component": 3}, {"id": 110, "label": "智能灯光控制台", "title": "智能灯光控制台", "component": 3}, {"id": 111, "label": "LED舞台灯具", "title": "LED舞台灯具", "component": 3}, {"id": 112, "label": "追光灯", "title": "追光灯", "component": 3}, {"id": 113, "label": "染色灯", "title": "染色灯", "component": 3}, {"id": 114, "label": "图案灯", "title": "图案灯", "component": 3}, {"id": 115, "label": "升降舞台", "title": "升降舞台", "component": 3}, {"id": 116, "label": "旋转舞台", "title": "旋转舞台", "component": 3}, {"id": 117, "label": "伸缩机械臂", "title": "伸缩机械臂", "component": 3}, {"id": 118, "label": "轨道移动装置", "title": "轨道移动装置", "component": 3}, {"id": 119, "label": "视觉采集相机(高速摄像机)", "title": "视觉采集相机(高速摄像机)", "component": 3}, {"id": 120, "label": "边缘计算服务器", "title": "边缘计算服务器", "component": 3}, {"id": 121, "label": "同步控制工控机", "title": "同步控制工控机", "component": 3}, {"id": 122, "label": "演员肢体动作", "title": "演员肢体动作", "component": 3}, {"id": 123, "label": "演员位置坐标", "title": "演员位置坐标", "component": 3}, {"id": 124, "label": "面部表情", "title": "面部表情", "component": 3}, {"id": 125, "label": "群体队形", "title": "群体队形", "component": 3}, {"id": 126, "label": "音乐节奏", "title": "音乐节奏", "component": 3}, {"id": 127, "label": "音乐节拍", "title": "音乐节拍", "component": 3}, {"id": 128, "label": "音频频谱", "title": "音频频谱", "component": 3}, {"id": 129, "label": "节目情绪", "title": "节目情绪", "component": 3}, {"id": 130, "label": "激昂", "title": "激昂", "component": 3}, {"id": 131, "label": "舒缓", "title": "舒缓", "component": 3}, {"id": 132, "label": "喜庆", "title": "喜庆", "component": 3}, {"id": 133, "label": "静谧", "title": "静谧", "component": 3}, {"id": 134, "label": "舞台场景类型", "title": "舞台场景类型", "component": 3}, {"id": 135, "label": "歌舞", "title": "歌舞", "component": 3}, {"id": 136, "label": "小品", "title": "小品", "component": 3}, {"id": 137, "label": "魔术", "title": "魔术", "component": 3}, {"id": 138, "label": "戏曲", "title": "戏曲", "component": 3}, {"id": 139, "label": "色温值(K)", "title": "色温值(K)", "component": 3}, {"id": 140, "label": "亮度百分比", "title": "亮度百分比", "component": 3}, {"id": 141, "label": "投射角度(水平/俯仰)", "title": "投射角度(水平/俯仰)", "component": 3}, {"id": 142, "label": "光斑大小", "title": "光斑大小", "component": 3}, {"id": 143, "label": "机械位移坐标", "title": "机械位移坐标", "component": 3}, {"id": 144, "label": "运动速度", "title": "运动速度", "component": 3}, {"id": 145, "label": "加速度", "title": "加速度", "component": 3}, {"id": 146, "label": "同步延迟(ms)", "title": "同步延迟(ms)", "component": 3}, {"id": 147, "label": "轨迹路径点", "title": "轨迹路径点", "component": 3}, {"id": 148, "label": "人体姿态估计模型", "title": "人体姿态估计模型", "component": 3}, {"id": 149, "label": "动作时序识别模型", "title": "动作时序识别模型", "component": 3}, {"id": 150, "label": "情绪识别模型", "title": "情绪识别模型", "component": 3}, {"id": 151, "label": "音频特征提取模型", "title": "音频特征提取模型", "component": 3}, {"id": 152, "label": "强化学习策略网络", "title": "强化学习策略网络", "component": 3}, {"id": 153, "label": "轨迹优化算法", "title": "轨迹优化算法", "component": 3}, {"id": 154, "label": "多目标协同控制算法", "title": "多目标协同控制算法", "component": 3}, {"id": 155, "label": "实时预测模型", "title": "实时预测模型", "component": 3}, {"id": 156, "label": "误差补偿算法", "title": "误差补偿算法", "component": 3}, {"id": 157, "label": "春晚舞台", "title": "春晚舞台", "component": 3}, {"id": 158, "label": "大型综艺晚会", "title": "大型综艺晚会", "component": 3}, {"id": 159, "label": "演唱会", "title": "演唱会", "component": 3}, {"id": 160, "label": "歌舞类节目", "title": "歌舞类节目", "component": 3}, {"id": 161, "label": "语言类节目", "title": "语言类节目", "component": 3}, {"id": 162, "label": "杂技类节目", "title": "杂技类节目", "component": 3}, {"id": 163, "label": "沉浸式舞台", "title": "沉浸式舞台", "component": 3}, {"id": 164, "label": "响应延迟", "title": "响应延迟", "component": 3}, {"id": 165, "label": "控制精度", "title": "控制精度", "component": 3}, {"id": 166, "label": "同步误差", "title": "同步误差", "component": 3}, {"id": 167, "label": "识别准确率", "title": "识别准确率", "component": 3}, {"id": 168, "label": "实时帧率", "title": "实时帧率", "component": 3}, {"id": 169, "label": "系统稳定性", "title": "系统稳定性", "component": 3}, {"id": 170, "label": "抗干扰能力", "title": "抗干扰能力", "component": 3}, {"id": 171, "label": "灯光设计师设计", "title": "灯光设计师设计", "component": 3}, {"id": 172, "label": "机械工程师研发", "title": "机械工程师研发", "component": 3}, {"id": 173, "label": "AI算法工程师开发", "title": "AI算法工程师开发", "component": 3}, {"id": 174, "label": "视觉工程师优化", "title": "视觉工程师优化", "component": 3}, {"id": 175, "label": "现场导演调度", "title": "现场导演调度", "component": 3}, {"id": 176, "label": "演员", "title": "演员", "component": 3}, {"id": 177, "label": "AI智能舞台灯光与机械协同控制知识查询系统", "title": "AI智能舞台灯光与机械协同控制知识查询系统", "component": 4}, {"id": 178, "label": "基础检索模块", "title": "基础检索模块", "component": 4}, {"id": 179, "label": "关系查询模块", "title": "关系查询模块", "component": 4}, {"id": 180, "label": "逻辑推理模块", "title": "逻辑推理模块", "component": 4}, {"id": 181, "label": "对比分析模块", "title": "对比分析模块", "component": 4}, {"id": 182, "label": "可视化展示模块", "title": "可视化展示模块", "component": 4}, {"id": 183, "label": "数据管理模块", "title": "数据管理模块", "component": 4}, {"id": 184, "label": "按关键词查询技术、设备、算法", "title": "按关键词查询技术、设备、算法", "component": 4}, {"id": 185, "label": "实体详情展示", "title": "实体详情展示", "component": 4}, {"id": 186, "label": "关联知识自动推荐", "title": "关联知识自动推荐", "component": 4}, {"id": 187, "label": "查询技术与性能指标的关联", "title": "查询技术与性能指标的关联", "component": 4}, {"id": 188, "label": "查询感知输入与控制输出的关联", "title": "查询感知输入与控制输出的关联", "component": 4}, {"id": 189, "label": "查询场景与技术的关联", "title": "查询场景与技术的关联", "component": 4}, {"id": 190, "label": "根据节目情绪推荐灯光与机械方案", "title": "根据节目情绪推荐灯光与机械方案", "component": 4}, {"id": 191, "label": "根据设备型号匹配控制精度", "title": "根据设备型号匹配控制精度", "component": 4}, {"id": 192, "label": "根据延迟要求筛选适用算法", "title": "根据延迟要求筛选适用算法", "component": 4}, {"id": 193, "label": "不同控制技术精度对比", "title": "不同控制技术精度对比", "component": 4}, {"id": 194, "label": "传统控制与AI智能控制对比", "title": "传统控制与AI智能控制对比", "component": 4}, {"id": 195, "label": "不同节目场景控制策略对比", "title": "不同节目场景控制策略对比", "component": 4}, {"id": 196, "label": "知识图谱可视化(节点+关系)", "title": "知识图谱可视化(节点+关系)", "component": 4}, {"id": 197, "label": "控制流程时序图展示", "title": "控制流程时序图展示", "component": 4}, {"id": 198, "label": "灯光-机械协同示意图展示", "title": "灯光-机械协同示意图展示", "component": 4}, {"id": 199, "label": "知识录入、编辑、审核", "title": "知识录入、编辑、审核", "component": 4}, {"id": 200, "label": "实体关系更新", "title": "实体关系更新", "component": 4}, {"id": 201, "label": "案例库扩充", "title": "案例库扩充", "component": 4}, {"id": 202, "label": "AI+XR/AR虚实融合舞台呈现技术", "title": "AI+XR/AR虚实融合舞台呈现技术", "component": 3}, {"id": 203, "label": "AI+XR虚实融合技术", "title": "AI+XR虚实融合技术", "component": 3}, {"id": 204, "label": "AI+AR增强现实呈现技术", "title": "AI+AR增强现实呈现技术", "component": 3}, {"id": 205, "label": "XR扩展现实技术(VR/AR/MR)", "title": "XR扩展现实技术(VR/AR/MR)", "component": 3}, {"id": 206, "label": "数字孪生舞台技术", "title": "数字孪生舞台技术", "component": 3}, {"id": 207, "label": "生成式AI虚拟场景构建(AIGC)", "title": "生成式AI虚拟场景构建(AIGC)", "component": 3}, {"id": 208, "label": "实时空间定位与跟踪技术", "title": "实时空间定位与跟踪技术", "component": 3}, {"id": 209, "label": "三维实时渲染技术", "title": "三维实时渲染技术", "component": 3}, {"id": 210, "label": "摄像机追踪与同步技术", "title": "摄像机追踪与同步技术", "component": 3}, {"id": 211, "label": "数字分身/虚拟人技术", "title": "数字分身/虚拟人技术", "component": 3}, {"id": 212, "label": "全息投影与半透明叠加技术", "title": "全息投影与半透明叠加技术", "component": 3}, {"id": 213, "label": "多机位虚实合成技术", "title": "多机位虚实合成技术", "component": 3}, {"id": 214, "label": "光影实时匹配技术", "title": "光影实时匹配技术", "component": 3}, {"id": 215, "label": "语义SLAM空间理解技术", "title": "语义SLAM空间理解技术", "component": 3}, {"id": 216, "label": "NeRF神经辐射场场景建模", "title": "NeRF神经辐射场场景建模", "component": 3}, {"id": 217, "label": "XR沉浸式LED屏(环形/立方体/天幕)", "title": "XR沉浸式LED屏(环形/立方体/天幕)", "component": 3}, {"id": 218, "label": "高速光学动捕相机", "title": "高速光学动捕相机", "component": 3}, {"id": 219, "label": "深度相机(RGBD)", "title": "深度相机(RGBD)", "component": 3}, {"id": 220, "label": "惯性测量单元(IMU)", "title": "惯性测量单元(IMU)", "component": 3}, {"id": 221, "label": "实时渲染服务器集群", "title": "实时渲染服务器集群", "component": 3}, {"id": 222, "label": "4K/8K超高清摄像机", "title": "4K/8K超高清摄像机", "component": 3}, {"id": 223, "label": "跟踪云台与运动控制(MoCo)", "title": "跟踪云台与运动控制(MoCo)", "component": 3}, {"id": 224, "label": "全息纱幕/幻影成像膜", "title": "全息纱幕/幻影成像膜", "component": 3}, {"id": 225, "label": "空间音频系统(杜比全景声)", "title": "空间音频系统(杜比全景声)", "component": 3}, {"id": 226, "label": "力反馈交互设备", "title": "力反馈交互设备", "component": 3}, {"id": 227, "label": "边缘计算工控机", "title": "边缘计算工控机", "component": 3}, {"id": 228, "label": "绿幕/蓝幕抠像系统", "title": "绿幕/蓝幕抠像系统", "component": 3}, {"id": 229, "label": "无限延展虚拟舞台", "title": "无限延展虚拟舞台", "component": 3}, {"id": 230, "label": "地域文化数字场景", "title": "地域文化数字场景", "component": 3}, {"id": 231, "label": "数字孪生实景模型", "title": "数字孪生实景模型", "component": 3}, {"id": 232, "label": "虚拟场景组件", "title": "虚拟场景组件", "component": 3}, {"id": 233, "label": "建筑", "title": "建筑", "component": 3}, {"id": 234, "label": "自然", "title": "自然", "component": 3}, {"id": 235, "label": "特效", "title": "特效", "component": 3}, {"id": 236, "label": "数字分身/虚拟演员", "title": "数字分身/虚拟演员", "component": 3}, {"id": 237, "label": "虚拟特效元素", "title": "虚拟特效元素", "component": 3}, {"id": 238, "label": "粒子", "title": "粒子", "component": 3}, {"id": 239, "label": "光效", "title": "光效", "component": 3}, {"id": 240, "label": "流体", "title": "流体", "component": 3}, {"id": 241, "label": "3D资产库", "title": "3D资产库", "component": 3}, {"id": 242, "label": "人物", "title": "人物", "component": 3}, {"id": 243, "label": "道具", "title": "道具", "component": 3}, {"id": 244, "label": "场景", "title": "场景", "component": 3}, {"id": 245, "label": "AI生成月令花景/虚拟马群", "title": "AI生成月令花景/虚拟马群", "component": 3}, {"id": 246, "label": "丝路虚拟场景(敦煌/波斯/地中海)", "title": "丝路虚拟场景(敦煌/波斯/地中海)", "component": 3}, {"id": 247, "label": "演员肢体动作/位置", "title": "演员肢体动作/位置", "component": 3}, {"id": 248, "label": "演员道具(实体触发物)", "title": "演员道具(实体触发物)", "component": 3}, {"id": 249, "label": "摄像机机位/运镜轨迹", "title": "摄像机机位/运镜轨迹", "component": 3}, {"id": 250, "label": "音乐节奏/声纹频率", "title": "音乐节奏/声纹频率", "component": 3}, {"id": 251, "label": "科技感", "title": "科技感", "component": 3}, {"id": 252, "label": "观众视角/沉浸体验", "title": "观众视角/沉浸体验", "component": 3}, {"id": 253, "label": "实时交互指令", "title": "实时交互指令", "component": 3}, {"id": 254, "label": "触摸", "title": "触摸", "component": 3}, {"id": 255, "label": "位移", "title": "位移", "component": 3}, {"id": 256, "label": "触发", "title": "触发", "component": 3}, {"id": 257, "label": "环境光照/光影参数", "title": "环境光照/光影参数", "component": 3}, {"id": 258, "label": "虚拟场景渲染参数", "title": "虚拟场景渲染参数", "component": 3}, {"id": 259, "label": "AR叠加层透明度/大小/轨迹", "title": "AR叠加层透明度/大小/轨迹", "component": 3}, {"id": 260, "label": "空间坐标(6DoF)", "title": "空间坐标(6DoF)", "component": 3}, {"id": 261, "label": "渲染帧率/延迟(ms)", "title": "渲染帧率/延迟(ms)", "component": 3}, {"id": 262, "label": "虚实融合精度(mm)", "title": "虚实融合精度(mm)", "component": 3}, {"id": 263, "label": "光影匹配度", "title": "光影匹配度", "component": 3}, {"id": 264, "label": "场景切换速度", "title": "场景切换速度", "component": 3}, {"id": 265, "label": "交互响应延迟", "title": "交互响应延迟", "component": 3}, {"id": 266, "label": "实时姿态估计算法", "title": "实时姿态估计算法", "component": 3}, {"id": 267, "label": "空间定位算法(VIO/SLAM)", "title": "空间定位算法(VIO/SLAM)", "component": 3}, {"id": 268, "label": "生成式AI大模型(千问/央视听媒体)", "title": "生成式AI大模型(千问/央视听媒体)", "component": 3}, {"id": 269, "label": "实时渲染优化算法", "title": "实时渲染优化算法", "component": 3}, {"id": 270, "label": "光影估计与匹配模型", "title": "光影估计与匹配模型", "component": 3}, {"id": 271, "label": "智能遮挡处理算法", "title": "智能遮挡处理算法", "component": 3}, {"id": 272, "label": "数字孪生建模算法", "title": "数字孪生建模算法", "component": 3}, {"id": 273, "label": "虚拟人驱动模型", "title": "虚拟人驱动模型", "component": 3}, {"id": 274, "label": "多源数据融合算法", "title": "多源数据融合算法", "component": 3}, {"id": 275, "label": "2025央视春晚", "title": "2025央视春晚", "component": 3}, {"id": 276, "label": "2026央视春晚(主会场/义乌分会场)", "title": "2026央视春晚(主会场/义乌分会场)", "component": 3}, {"id": 277, "label": "2026粤港澳大湾区春晚", "title": "2026粤港澳大湾区春晚", "component": 3}, {"id": 278, "label": "2026浙江春晚", "title": "2026浙江春晚", "component": 3}, {"id": 279, "label": "创意表演/武术类节目", "title": "创意表演/武术类节目", "component": 3}, {"id": 280, "label": "文化主题类节目", "title": "文化主题类节目", "component": 3}, {"id": 281, "label": "沉浸式舞台场景", "title": "沉浸式舞台场景", "component": 3}, {"id": 282, "label": "一步一景动态场景", "title": "一步一景动态场景", "component": 3}, {"id": 283, "label": "渲染帧率(FPS)", "title": "渲染帧率(FPS)", "component": 3}, {"id": 284, "label": "系统延迟(ms)", "title": "系统延迟(ms)", "component": 3}, {"id": 285, "label": "空间定位精度(mm)", "title": "空间定位精度(mm)", "component": 3}, {"id": 286, "label": "虚实对齐误差", "title": "虚实对齐误差", "component": 3}, {"id": 287, "label": "场景还原度", "title": "场景还原度", "component": 3}, {"id": 288, "label": "交互响应速度", "title": "交互响应速度", "component": 3}, {"id": 289, "label": "渲染稳定性", "title": "渲染稳定性", "component": 3}, {"id": 290, "label": "视觉流畅度", "title": "视觉流畅度", "component": 3}, {"id": 291, "label": "2026央视春晚", "title": "2026央视春晚", "component": 5}, {"id": 292, "label": "央视《马上有奇迹》", "title": "央视《马上有奇迹》", "component": 5}, {"id": 293, "label": "XR万马奔腾技术", "title": "XR万马奔腾技术", "component": 5}, {"id": 294, "label": "央视《贺花神》", "title": "央视《贺花神》", "component": 5}, {"id": 295, "label": "AI月令花景技术", "title": "AI月令花景技术", "component": 5}, {"id": 296, "label": "2026央视春晚义乌分会场", "title": "2026央视春晚义乌分会场", "component": 6}, {"id": 297, "label": "央视《世界义乌中国年》", "title": "央视《世界义乌中国年》", "component": 6}, {"id": 298, "label": "丝路场景技术", "title": "丝路场景技术", "component": 6}, {"id": 299, "label": "粤港澳《Give Me That》", "title": "粤港澳《Give Me That》", "component": 3}, {"id": 300, "label": "AR未来感元素技术", "title": "AR未来感元素技术", "component": 3}, {"id": 301, "label": "地域文化数字场景技术", "title": "地域文化数字场景技术", "component": 3}, {"id": 302, "label": "蓉港春晚", "title": "蓉港春晚", "component": 7}, {"id": 303, "label": "蓉港春晚《精武·双城》", "title": "蓉港春晚《精武·双城》", "component": 7}, {"id": 304, "label": "XR双城联动技术", "title": "XR双城联动技术", "component": 7}, {"id": 305, "label": "舞台视觉设计师设计", "title": "舞台视觉设计师设计", "component": 3}, {"id": 306, "label": "XR技术工程师研发", "title": "XR技术工程师研发", "component": 3}, {"id": 307, "label": "实时渲染师优化", "title": "实时渲染师优化", "component": 3}, {"id": 308, "label": "动捕操作员操作", "title": "动捕操作员操作", "component": 3}, {"id": 309, "label": "节目导演调度", "title": "节目导演调度", "component": 3}, {"id": 310, "label": "硬件厂商(七维科技/强氧/洲明)提供设备", "title": "硬件厂商(七维科技/强氧/洲明)提供设备", "component": 3}, {"id": 311, "label": "AI+XR/AR虚实融合舞台呈现知识查询系统", "title": "AI+XR/AR虚实融合舞台呈现知识查询系统", "component": 4}, {"id": 312, "label": "案例深度解析模块", "title": "案例深度解析模块", "component": 4}, {"id": 313, "label": "逻辑推理与方案模块", "title": "逻辑推理与方案模块", "component": 4}, {"id": 314, "label": "关键词检索技术、设备、案例、节目", "title": "关键词检索技术、设备、案例、节目", "component": 4}, {"id": 315, "label": "实体详情页展示(全属性+关联知识)", "title": "实体详情页展示(全属性+关联知识)", "component": 4}, {"id": 316, "label": "按晚会/技术/设备/案例分类浏览", "title": "按晚会/技术/设备/案例分类浏览", "component": 4}, {"id": 317, "label": "查询晚会与XR技术的关联", "title": "查询晚会与XR技术的关联", "component": 4}, {"id": 318, "label": "查询AI模型与虚拟场景的关联", "title": "查询AI模型与虚拟场景的关联", "component": 4}, {"id": 319, "label": "查询设备与虚实毫米级对齐的关联", "title": "查询设备与虚实毫米级对齐的关联", "component": 4}, {"id": 320, "label": "查询数字孪生与一步一景的关联", "title": "查询数字孪生与一步一景的关联", "component": 4}, {"id": 321, "label": "查询地方春晚与XR技术文化表达的关联", "title": "查询地方春晚与XR技术文化表达的关联", "component": 4}, {"id": 322, "label": "单案例全链路拆解(技术→设备→内容→效果)", "title": "单案例全链路拆解(技术→设备→内容→效果)", "component": 4}, {"id": 323, "label": "跨晚会技术对比(央视/粤港澳/浙江)", "title": "跨晚会技术对比(央视/粤港澳/浙江)", "component": 4}, {"id": 324, "label": "技术效果还原(原理→步骤→呈现)", "title": "技术效果还原(原理→步骤→呈现)", "component": 4}, {"id": 325, "label": "根据节目类型推荐XR/AR技术组合", "title": "根据节目类型推荐XR/AR技术组合", "component": 4}, {"id": 326, "label": "根据效果需求匹配技术与设备", "title": "根据效果需求匹配技术与设备", "component": 4}, {"id": 327, "label": "根据文化主题生成虚拟场景设计思路", "title": "根据文化主题生成虚拟场景设计思路", "component": 4}, {"id": 328, "label": "知识图谱可视化(节点-关系动态图)", "title": "知识图谱可视化(节点-关系动态图)", "component": 4}, {"id": 329, "label": "虚实融合技术架构图展示", "title": "虚实融合技术架构图展示", "component": 4}, {"id": 330, "label": "虚实融合技术流程图展示", "title": "虚实融合技术流程图展示", "component": 4}, {"id": 331, "label": "案例效果对比图展示", "title": "案例效果对比图展示", "component": 4}, {"id": 332, "label": "场景分层示意图展示", "title": "场景分层示意图展示", "component": 4}, {"id": 333, "label": "知识录入/编辑/审核", "title": "知识录入/编辑/审核", "component": 4}, {"id": 334, "label": "案例扩充、技术更新", "title": "案例扩充、技术更新", "component": 4}, {"id": 335, "label": "关联关系维护、属性补充", "title": "关联关系维护、属性补充", "component": 4}];
+		const initialEdges = [{"id": 1, "from": 1, "to": 2, "label": "核心依赖", "title": "AIGC视觉内容生成 --核心依赖--> 深度学习", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 2, "from": 1, "to": 3, "label": "技术支撑", "title": "AIGC视觉内容生成 --技术支撑--> 计算机视觉", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 3, "from": 2, "to": 4, "label": "包含核心引擎", "title": "深度学习 --包含核心引擎--> 扩散模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 4, "from": 2, "to": 5, "label": "包含视觉方案生成技术", "title": "深度学习 --包含视觉方案生成技术--> 生成对抗网络", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 5, "from": 2, "to": 6, "label": "包含压缩与重建技术", "title": "深度学习 --包含压缩与重建技术--> 变分自编码器", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 6, "from": 2, "to": 7, "label": "包含时序建模技术", "title": "深度学习 --包含时序建模技术--> Transformer", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 7, "from": 2, "to": 8, "label": "包含条件控制技术", "title": "深度学习 --包含条件控制技术--> ControlNet", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 8, "from": 2, "to": 9, "label": "包含画质增强技术", "title": "深度学习 --包含画质增强技术--> 超分辨率网络", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 9, "from": 3, "to": 10, "label": "包含核心技术", "title": "计算机视觉 --包含核心技术--> 目标检测与关键点提取", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 10, "from": 3, "to": 11, "label": "用于", "title": "计算机视觉 --用于--> 获取控制输入", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 11, "from": 3, "to": 12, "label": "包含核心技术", "title": "计算机视觉 --包含核心技术--> 图像风格迁移", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 12, "from": 12, "to": 13, "label": "实现", "title": "图像风格迁移 --实现--> 融入传统纹样", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 13, "from": 3, "to": 14, "label": "包含核心技术", "title": "计算机视觉 --包含核心技术--> 时空注意力机制", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 14, "from": 14, "to": 15, "label": "保证", "title": "时空注意力机制 --保证--> 动态连贯", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 15, "from": 16, "to": 2, "label": "核心依赖", "title": "AI实时同声字幕生成 --核心依赖--> 深度学习", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 16, "from": 16, "to": 17, "label": "技术支撑", "title": "AI实时同声字幕生成 --技术支撑--> 自然语言处理", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 17, "from": 16, "to": 18, "label": "技术优化", "title": "AI实时同声字幕生成 --技术优化--> 工程优化", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 18, "from": 2, "to": 19, "label": "包含核心技术", "title": "深度学习 --包含核心技术--> 端到端语音识别", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 19, "from": 19, "to": 20, "label": "实现", "title": "端到端语音识别 --实现--> 音频转文字", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 20, "from": 2, "to": 21, "label": "包含声学语言建模技术", "title": "深度学习 --包含声学语言建模技术--> Transformer/Conformer", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 21, "from": 2, "to": 22, "label": "包含语义优化技术", "title": "深度学习 --包含语义优化技术--> 大语言模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 22, "from": 22, "to": 23, "label": "实现", "title": "大语言模型 --实现--> 语义纠错", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 23, "from": 2, "to": 24, "label": "包含领域适配技术", "title": "深度学习 --包含领域适配技术--> 预训练微调", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 24, "from": 17, "to": 25, "label": "包含核心技术", "title": "自然语言处理 --包含核心技术--> 自动语音识别", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 25, "from": 25, "to": 26, "label": "实现", "title": "自动语音识别 --实现--> 语音转文字", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 26, "from": 17, "to": 23, "label": "包含优化技术", "title": "自然语言处理 --包含优化技术--> 语义纠错", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 27, "from": 23, "to": 27, "label": "解决", "title": "语义纠错 --解决--> 同音字问题", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 28, "from": 17, "to": 28, "label": "包含核心技术", "title": "自然语言处理 --包含核心技术--> 命名实体识别", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 29, "from": 28, "to": 29, "label": "实现", "title": "命名实体识别 --实现--> 识别专有名词", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 30, "from": 17, "to": 30, "label": "包含核心技术", "title": "自然语言处理 --包含核心技术--> 分词断句", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 31, "from": 30, "to": 31, "label": "实现", "title": "分词断句 --实现--> 合理分句", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 32, "from": 18, "to": 32, "label": "包含核心技术", "title": "工程优化 --包含核心技术--> 流式推理", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 33, "from": 32, "to": 33, "label": "实现", "title": "流式推理 --实现--> 低延迟(<3秒)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 34, "from": 18, "to": 34, "label": "包含核心技术", "title": "工程优化 --包含核心技术--> 多模态对齐", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 35, "from": 34, "to": 35, "label": "实现", "title": "多模态对齐 --实现--> 音字画同步", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 36, "from": 36, "to": 37, "label": "包含感知层技术", "title": "春晚具身智能机器人技术 --包含感知层技术--> 高精度激光SLAM与实时定位", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 37, "from": 36, "to": 38, "label": "包含决策层技术", "title": "春晚具身智能机器人技术 --包含决策层技术--> 控制算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 38, "from": 36, "to": 39, "label": "包含执行层技术", "title": "春晚具身智能机器人技术 --包含执行层技术--> 武术高难度动作与精细操作", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 39, "from": 37, "to": 40, "label": "采用", "title": "高精度激光SLAM与实时定位 --采用--> 机器学习技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 40, "from": 37, "to": 41, "label": "采用", "title": "高精度激光SLAM与实时定位 --采用--> 深度学习技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 41, "from": 40, "to": 42, "label": "包含", "title": "机器学习技术 --包含--> 多传感器融合定位", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 42, "from": 42, "to": 43, "label": "融合", "title": "多传感器融合定位 --融合--> 激光雷达数据", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 43, "from": 42, "to": 44, "label": "融合", "title": "多传感器融合定位 --融合--> IMU数据", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 44, "from": 42, "to": 45, "label": "融合", "title": "多传感器融合定位 --融合--> 视觉相机数据", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 45, "from": 42, "to": 46, "label": "采用", "title": "多传感器融合定位 --采用--> 贝叶斯滤波", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 46, "from": 46, "to": 47, "label": "包含", "title": "贝叶斯滤波 --包含--> 粒子滤波", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 47, "from": 46, "to": 48, "label": "包含", "title": "贝叶斯滤波 --包含--> 卡尔曼滤波", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 48, "from": 42, "to": 49, "label": "实现", "title": "多传感器融合定位 --实现--> 毫米级定位误差(±1mm)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 49, "from": 40, "to": 50, "label": "包含", "title": "机器学习技术 --包含--> 点云特征提取", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 50, "from": 50, "to": 51, "label": "采用", "title": "点云特征提取 --采用--> 传统机器学习算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 51, "from": 51, "to": 52, "label": "包含", "title": "传统机器学习算法 --包含--> ICP配准算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 52, "from": 51, "to": 53, "label": "包含", "title": "传统机器学习算法 --包含--> NDT配准算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 53, "from": 50, "to": 54, "label": "采用", "title": "点云特征提取 --采用--> 轻量CNN", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 54, "from": 50, "to": 55, "label": "实现", "title": "点云特征提取 --实现--> 快速构建舞台3D地图", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 55, "from": 41, "to": 56, "label": "包含", "title": "深度学习技术 --包含--> 语义SLAM", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 56, "from": 56, "to": 57, "label": "采用", "title": "语义SLAM --采用--> CNN/Transformer", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 57, "from": 56, "to": 58, "label": "实现", "title": "语义SLAM --实现--> 识别舞台边界", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 58, "from": 56, "to": 59, "label": "实现", "title": "语义SLAM --实现--> 识别同伴机器人", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 59, "from": 56, "to": 60, "label": "实现", "title": "语义SLAM --实现--> 识别真人演员", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 60, "from": 56, "to": 61, "label": "实现", "title": "语义SLAM --实现--> 避免碰撞", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 61, "from": 56, "to": 62, "label": "辅助", "title": "语义SLAM --辅助--> 决策", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 62, "from": 41, "to": 63, "label": "包含", "title": "深度学习技术 --包含--> 视觉-激光深度估计", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 63, "from": 63, "to": 64, "label": "采用", "title": "视觉-激光深度估计 --采用--> 单目视觉网络", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 64, "from": 63, "to": 65, "label": "采用", "title": "视觉-激光深度估计 --采用--> 双目视觉网络", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 65, "from": 63, "to": 66, "label": "实现", "title": "视觉-激光深度估计 --实现--> 补全激光点云盲区", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 66, "from": 63, "to": 67, "label": "提升", "title": "视觉-激光深度估计 --提升--> 环境感知完整性", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 67, "from": 38, "to": 40, "label": "采用", "title": "控制算法 --采用--> 机器学习技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 68, "from": 38, "to": 68, "label": "采用", "title": "控制算法 --采用--> 强化学习技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 69, "from": 40, "to": 69, "label": "包含", "title": "机器学习技术 --包含--> 分布式模型预测控制(DMPC)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 70, "from": 69, "to": 70, "label": "采用", "title": "分布式模型预测控制(DMPC) --采用--> 线性回归", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 71, "from": 69, "to": 71, "label": "采用", "title": "分布式模型预测控制(DMPC) --采用--> 非线性回归", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 72, "from": 69, "to": 72, "label": "实现", "title": "分布式模型预测控制(DMPC) --实现--> 预测自身状态", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 73, "from": 69, "to": 73, "label": "实现", "title": "分布式模型预测控制(DMPC) --实现--> 预测邻居状态", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 74, "from": 69, "to": 74, "label": "实现", "title": "分布式模型预测控制(DMPC) --实现--> 优化动作轨迹", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 75, "from": 69, "to": 75, "label": "实现", "title": "分布式模型预测控制(DMPC) --实现--> 同步误差控制在0.1秒内", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 76, "from": 68, "to": 76, "label": "包含", "title": "强化学习技术 --包含--> 多智能体强化学习(MARL)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 77, "from": 76, "to": 77, "label": "以", "title": "多智能体强化学习(MARL) --以--> 动作同步度为奖励函数", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 78, "from": 76, "to": 78, "label": "以", "title": "多智能体强化学习(MARL) --以--> 无碰撞为奖励函数", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 79, "from": 76, "to": 79, "label": "以", "title": "多智能体强化学习(MARL) --以--> 队形完整为奖励函数", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 80, "from": 76, "to": 80, "label": "实现", "title": "多智能体强化学习(MARL) --实现--> 自主学习最优协同策略", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 81, "from": 68, "to": 81, "label": "包含", "title": "强化学习技术 --包含--> 通信感知强化学习", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 82, "from": 81, "to": 82, "label": "优化", "title": "通信感知强化学习 --优化--> 5G带宽分配", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 83, "from": 81, "to": 83, "label": "优化", "title": "通信感知强化学习 --优化--> 边缘计算带宽分配", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 84, "from": 81, "to": 84, "label": "实现", "title": "通信感知强化学习 --实现--> 低延迟共享状态信息", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 85, "from": 39, "to": 41, "label": "采用", "title": "武术高难度动作与精细操作 --采用--> 深度学习技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 86, "from": 41, "to": 85, "label": "包含", "title": "深度学习技术 --包含--> 动作模仿学习(Imitation Learning)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 87, "from": 85, "to": 7, "label": "采用", "title": "动作模仿学习(Imitation Learning) --采用--> Transformer", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 88, "from": 85, "to": 4, "label": "采用", "title": "动作模仿学习(Imitation Learning) --采用--> 扩散模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 89, "from": 85, "to": 86, "label": "学习", "title": "动作模仿学习(Imitation Learning) --学习--> 人类武术动作视频数据", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 90, "from": 85, "to": 87, "label": "生成", "title": "动作模仿学习(Imitation Learning) --生成--> 基础动作轨迹", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 91, "from": 87, "to": 88, "label": "包含", "title": "基础动作轨迹 --包含--> 劈", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 92, "from": 87, "to": 89, "label": "包含", "title": "基础动作轨迹 --包含--> 砸", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 93, "from": 87, "to": 90, "label": "包含", "title": "基础动作轨迹 --包含--> 挑", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 94, "from": 87, "to": 91, "label": "包含", "title": "基础动作轨迹 --包含--> 舞剑", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 95, "from": 41, "to": 92, "label": "包含", "title": "深度学习技术 --包含--> 端到端运动控制网络", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 96, "from": 92, "to": 93, "label": "采用", "title": "端到端运动控制网络 --采用--> CNN+LSTM/Transformer", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 97, "from": 92, "to": 94, "label": "映射", "title": "端到端运动控制网络 --映射--> 感知输入至关节力矩指令", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 98, "from": 95, "to": 96, "label": "包含", "title": "感知输入 --包含--> 姿态", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 2}, {"id": 99, "from": 95, "to": 97, "label": "包含", "title": "感知输入 --包含--> 环境", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 2}, {"id": 100, "from": 92, "to": 98, "label": "实现", "title": "端到端运动控制网络 --实现--> 动态平衡", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 1}, {"id": 101, "from": 99, "to": 100, "label": "包含", "title": "AI智能舞台灯光与机械协同控制技术 --包含--> AI智能舞台灯光控制技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 102, "from": 99, "to": 101, "label": "包含", "title": "AI智能舞台灯光与机械协同控制技术 --包含--> 舞台机械协同控制技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 103, "from": 100, "to": 102, "label": "采用", "title": "AI智能舞台灯光控制技术 --采用--> 计算机视觉动作识别", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 104, "from": 100, "to": 103, "label": "采用", "title": "AI智能舞台灯光控制技术 --采用--> 强化学习控制算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 105, "from": 100, "to": 104, "label": "采用", "title": "AI智能舞台灯光控制技术 --采用--> 毫米级同步控制技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 106, "from": 100, "to": 105, "label": "包含", "title": "AI智能舞台灯光控制技术 --包含--> 灯光色温调节技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 107, "from": 100, "to": 106, "label": "包含", "title": "AI智能舞台灯光控制技术 --包含--> 灯光亮度调节技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 108, "from": 100, "to": 107, "label": "包含", "title": "AI智能舞台灯光控制技术 --包含--> 投射角度控制技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 109, "from": 101, "to": 108, "label": "包含", "title": "舞台机械协同控制技术 --包含--> 舞台机械轨迹规划", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 110, "from": 101, "to": 109, "label": "包含", "title": "舞台机械协同控制技术 --包含--> 实时调度与联动技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 111, "from": 100, "to": 110, "label": "依赖", "title": "AI智能舞台灯光控制技术 --依赖--> 智能灯光控制台", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 112, "from": 100, "to": 111, "label": "控制", "title": "AI智能舞台灯光控制技术 --控制--> LED舞台灯具", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 113, "from": 100, "to": 112, "label": "控制", "title": "AI智能舞台灯光控制技术 --控制--> 追光灯", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 114, "from": 100, "to": 113, "label": "控制", "title": "AI智能舞台灯光控制技术 --控制--> 染色灯", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 115, "from": 100, "to": 114, "label": "控制", "title": "AI智能舞台灯光控制技术 --控制--> 图案灯", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 116, "from": 101, "to": 115, "label": "控制", "title": "舞台机械协同控制技术 --控制--> 升降舞台", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 117, "from": 101, "to": 116, "label": "控制", "title": "舞台机械协同控制技术 --控制--> 旋转舞台", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 118, "from": 101, "to": 117, "label": "控制", "title": "舞台机械协同控制技术 --控制--> 伸缩机械臂", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 119, "from": 101, "to": 118, "label": "控制", "title": "舞台机械协同控制技术 --控制--> 轨道移动装置", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 120, "from": 102, "to": 119, "label": "依赖", "title": "计算机视觉动作识别 --依赖--> 视觉采集相机(高速摄像机)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 121, "from": 99, "to": 120, "label": "依赖", "title": "AI智能舞台灯光与机械协同控制技术 --依赖--> 边缘计算服务器", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 122, "from": 99, "to": 121, "label": "依赖", "title": "AI智能舞台灯光与机械协同控制技术 --依赖--> 同步控制工控机", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 123, "from": 102, "to": 122, "label": "分析", "title": "计算机视觉动作识别 --分析--> 演员肢体动作", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 124, "from": 102, "to": 123, "label": "分析", "title": "计算机视觉动作识别 --分析--> 演员位置坐标", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 125, "from": 102, "to": 124, "label": "分析", "title": "计算机视觉动作识别 --分析--> 面部表情", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 126, "from": 102, "to": 125, "label": "分析", "title": "计算机视觉动作识别 --分析--> 群体队形", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 127, "from": 99, "to": 126, "label": "分析", "title": "AI智能舞台灯光与机械协同控制技术 --分析--> 音乐节奏", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 128, "from": 99, "to": 127, "label": "分析", "title": "AI智能舞台灯光与机械协同控制技术 --分析--> 音乐节拍", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 129, "from": 99, "to": 128, "label": "分析", "title": "AI智能舞台灯光与机械协同控制技术 --分析--> 音频频谱", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 130, "from": 99, "to": 129, "label": "识别", "title": "AI智能舞台灯光与机械协同控制技术 --识别--> 节目情绪", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 131, "from": 129, "to": 130, "label": "包含", "title": "节目情绪 --包含--> 激昂", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 132, "from": 129, "to": 131, "label": "包含", "title": "节目情绪 --包含--> 舒缓", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 133, "from": 129, "to": 132, "label": "包含", "title": "节目情绪 --包含--> 喜庆", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 134, "from": 129, "to": 133, "label": "包含", "title": "节目情绪 --包含--> 静谧", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 135, "from": 99, "to": 134, "label": "适配", "title": "AI智能舞台灯光与机械协同控制技术 --适配--> 舞台场景类型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 136, "from": 134, "to": 135, "label": "包含", "title": "舞台场景类型 --包含--> 歌舞", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 137, "from": 134, "to": 136, "label": "包含", "title": "舞台场景类型 --包含--> 小品", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 138, "from": 134, "to": 137, "label": "包含", "title": "舞台场景类型 --包含--> 魔术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 139, "from": 134, "to": 138, "label": "包含", "title": "舞台场景类型 --包含--> 戏曲", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 140, "from": 105, "to": 139, "label": "输出", "title": "灯光色温调节技术 --输出--> 色温值(K)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 141, "from": 106, "to": 140, "label": "输出", "title": "灯光亮度调节技术 --输出--> 亮度百分比", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 142, "from": 107, "to": 141, "label": "输出", "title": "投射角度控制技术 --输出--> 投射角度(水平/俯仰)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 143, "from": 100, "to": 142, "label": "输出", "title": "AI智能舞台灯光控制技术 --输出--> 光斑大小", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 144, "from": 108, "to": 143, "label": "输出", "title": "舞台机械轨迹规划 --输出--> 机械位移坐标", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 145, "from": 101, "to": 144, "label": "输出", "title": "舞台机械协同控制技术 --输出--> 运动速度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 146, "from": 101, "to": 145, "label": "输出", "title": "舞台机械协同控制技术 --输出--> 加速度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 147, "from": 104, "to": 146, "label": "控制", "title": "毫米级同步控制技术 --控制--> 同步延迟(ms)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 148, "from": 108, "to": 147, "label": "输出", "title": "舞台机械轨迹规划 --输出--> 轨迹路径点", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 149, "from": 102, "to": 148, "label": "采用", "title": "计算机视觉动作识别 --采用--> 人体姿态估计模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 150, "from": 102, "to": 149, "label": "采用", "title": "计算机视觉动作识别 --采用--> 动作时序识别模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 151, "from": 99, "to": 150, "label": "采用", "title": "AI智能舞台灯光与机械协同控制技术 --采用--> 情绪识别模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 152, "from": 99, "to": 151, "label": "采用", "title": "AI智能舞台灯光与机械协同控制技术 --采用--> 音频特征提取模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 153, "from": 103, "to": 152, "label": "包含", "title": "强化学习控制算法 --包含--> 强化学习策略网络", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 154, "from": 108, "to": 153, "label": "采用", "title": "舞台机械轨迹规划 --采用--> 轨迹优化算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 155, "from": 99, "to": 154, "label": "采用", "title": "AI智能舞台灯光与机械协同控制技术 --采用--> 多目标协同控制算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 156, "from": 99, "to": 155, "label": "采用", "title": "AI智能舞台灯光与机械协同控制技术 --采用--> 实时预测模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 157, "from": 104, "to": 156, "label": "采用", "title": "毫米级同步控制技术 --采用--> 误差补偿算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 158, "from": 99, "to": 157, "label": "应用于", "title": "AI智能舞台灯光与机械协同控制技术 --应用于--> 春晚舞台", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 159, "from": 99, "to": 158, "label": "应用于", "title": "AI智能舞台灯光与机械协同控制技术 --应用于--> 大型综艺晚会", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 160, "from": 99, "to": 159, "label": "应用于", "title": "AI智能舞台灯光与机械协同控制技术 --应用于--> 演唱会", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 161, "from": 99, "to": 160, "label": "适配", "title": "AI智能舞台灯光与机械协同控制技术 --适配--> 歌舞类节目", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 162, "from": 99, "to": 161, "label": "适配", "title": "AI智能舞台灯光与机械协同控制技术 --适配--> 语言类节目", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 163, "from": 99, "to": 162, "label": "适配", "title": "AI智能舞台灯光与机械协同控制技术 --适配--> 杂技类节目", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 164, "from": 99, "to": 163, "label": "应用于", "title": "AI智能舞台灯光与机械协同控制技术 --应用于--> 沉浸式舞台", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 165, "from": 99, "to": 164, "label": "考核", "title": "AI智能舞台灯光与机械协同控制技术 --考核--> 响应延迟", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 166, "from": 99, "to": 165, "label": "考核", "title": "AI智能舞台灯光与机械协同控制技术 --考核--> 控制精度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 167, "from": 99, "to": 166, "label": "考核", "title": "AI智能舞台灯光与机械协同控制技术 --考核--> 同步误差", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 168, "from": 102, "to": 167, "label": "考核", "title": "计算机视觉动作识别 --考核--> 识别准确率", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 169, "from": 119, "to": 168, "label": "考核", "title": "视觉采集相机(高速摄像机) --考核--> 实时帧率", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 170, "from": 99, "to": 169, "label": "考核", "title": "AI智能舞台灯光与机械协同控制技术 --考核--> 系统稳定性", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 171, "from": 99, "to": 170, "label": "考核", "title": "AI智能舞台灯光与机械协同控制技术 --考核--> 抗干扰能力", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 172, "from": 100, "to": 171, "label": "由", "title": "AI智能舞台灯光控制技术 --由--> 灯光设计师设计", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 173, "from": 101, "to": 172, "label": "由", "title": "舞台机械协同控制技术 --由--> 机械工程师研发", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 174, "from": 99, "to": 173, "label": "由", "title": "AI智能舞台灯光与机械协同控制技术 --由--> AI算法工程师开发", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 175, "from": 102, "to": 174, "label": "由", "title": "计算机视觉动作识别 --由--> 视觉工程师优化", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 176, "from": 99, "to": 175, "label": "由", "title": "AI智能舞台灯光与机械协同控制技术 --由--> 现场导演调度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 177, "from": 99, "to": 176, "label": "适配", "title": "AI智能舞台灯光与机械协同控制技术 --适配--> 演员", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 178, "from": 177, "to": 178, "label": "包含", "title": "AI智能舞台灯光与机械协同控制知识查询系统 --包含--> 基础检索模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 179, "from": 177, "to": 179, "label": "包含", "title": "AI智能舞台灯光与机械协同控制知识查询系统 --包含--> 关系查询模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 180, "from": 177, "to": 180, "label": "包含", "title": "AI智能舞台灯光与机械协同控制知识查询系统 --包含--> 逻辑推理模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 181, "from": 177, "to": 181, "label": "包含", "title": "AI智能舞台灯光与机械协同控制知识查询系统 --包含--> 对比分析模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 182, "from": 177, "to": 182, "label": "包含", "title": "AI智能舞台灯光与机械协同控制知识查询系统 --包含--> 可视化展示模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 183, "from": 177, "to": 183, "label": "包含", "title": "AI智能舞台灯光与机械协同控制知识查询系统 --包含--> 数据管理模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 184, "from": 178, "to": 184, "label": "实现", "title": "基础检索模块 --实现--> 按关键词查询技术、设备、算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 185, "from": 178, "to": 185, "label": "实现", "title": "基础检索模块 --实现--> 实体详情展示", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 186, "from": 178, "to": 186, "label": "实现", "title": "基础检索模块 --实现--> 关联知识自动推荐", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 187, "from": 179, "to": 187, "label": "实现", "title": "关系查询模块 --实现--> 查询技术与性能指标的关联", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 188, "from": 179, "to": 188, "label": "实现", "title": "关系查询模块 --实现--> 查询感知输入与控制输出的关联", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 189, "from": 179, "to": 189, "label": "实现", "title": "关系查询模块 --实现--> 查询场景与技术的关联", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 190, "from": 180, "to": 190, "label": "实现", "title": "逻辑推理模块 --实现--> 根据节目情绪推荐灯光与机械方案", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 191, "from": 180, "to": 191, "label": "实现", "title": "逻辑推理模块 --实现--> 根据设备型号匹配控制精度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 192, "from": 180, "to": 192, "label": "实现", "title": "逻辑推理模块 --实现--> 根据延迟要求筛选适用算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 193, "from": 181, "to": 193, "label": "实现", "title": "对比分析模块 --实现--> 不同控制技术精度对比", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 194, "from": 181, "to": 194, "label": "实现", "title": "对比分析模块 --实现--> 传统控制与AI智能控制对比", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 195, "from": 181, "to": 195, "label": "实现", "title": "对比分析模块 --实现--> 不同节目场景控制策略对比", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 196, "from": 182, "to": 196, "label": "实现", "title": "可视化展示模块 --实现--> 知识图谱可视化(节点+关系)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 197, "from": 182, "to": 197, "label": "实现", "title": "可视化展示模块 --实现--> 控制流程时序图展示", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 198, "from": 182, "to": 198, "label": "实现", "title": "可视化展示模块 --实现--> 灯光-机械协同示意图展示", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 199, "from": 183, "to": 199, "label": "实现", "title": "数据管理模块 --实现--> 知识录入、编辑、审核", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 200, "from": 183, "to": 200, "label": "实现", "title": "数据管理模块 --实现--> 实体关系更新", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 201, "from": 183, "to": 201, "label": "实现", "title": "数据管理模块 --实现--> 案例库扩充", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 202, "from": 202, "to": 203, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> AI+XR虚实融合技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 203, "from": 202, "to": 204, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> AI+AR增强现实呈现技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 204, "from": 203, "to": 205, "label": "基于", "title": "AI+XR虚实融合技术 --基于--> XR扩展现实技术(VR/AR/MR)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 205, "from": 202, "to": 206, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 数字孪生舞台技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 206, "from": 202, "to": 207, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 生成式AI虚拟场景构建(AIGC)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 207, "from": 202, "to": 208, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 实时空间定位与跟踪技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 208, "from": 202, "to": 209, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 三维实时渲染技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 209, "from": 202, "to": 210, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 摄像机追踪与同步技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 210, "from": 202, "to": 211, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 数字分身/虚拟人技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 211, "from": 202, "to": 212, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 全息投影与半透明叠加技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 212, "from": 202, "to": 213, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 多机位虚实合成技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 213, "from": 202, "to": 214, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 光影实时匹配技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 214, "from": 202, "to": 215, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 语义SLAM空间理解技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 215, "from": 202, "to": 216, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> NeRF神经辐射场场景建模", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 216, "from": 203, "to": 217, "label": "依赖", "title": "AI+XR虚实融合技术 --依赖--> XR沉浸式LED屏(环形/立方体/天幕)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 217, "from": 211, "to": 218, "label": "依赖", "title": "数字分身/虚拟人技术 --依赖--> 高速光学动捕相机", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 218, "from": 208, "to": 219, "label": "依赖", "title": "实时空间定位与跟踪技术 --依赖--> 深度相机(RGBD)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 219, "from": 208, "to": 220, "label": "依赖", "title": "实时空间定位与跟踪技术 --依赖--> 惯性测量单元(IMU)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 220, "from": 209, "to": 221, "label": "依赖", "title": "三维实时渲染技术 --依赖--> 实时渲染服务器集群", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 221, "from": 213, "to": 222, "label": "依赖", "title": "多机位虚实合成技术 --依赖--> 4K/8K超高清摄像机", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 222, "from": 210, "to": 223, "label": "依赖", "title": "摄像机追踪与同步技术 --依赖--> 跟踪云台与运动控制(MoCo)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 223, "from": 212, "to": 224, "label": "依赖", "title": "全息投影与半透明叠加技术 --依赖--> 全息纱幕/幻影成像膜", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 224, "from": 202, "to": 225, "label": "搭配", "title": "AI+XR/AR虚实融合舞台呈现技术 --搭配--> 空间音频系统(杜比全景声)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 225, "from": 202, "to": 226, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现技术 --包含--> 力反馈交互设备", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 226, "from": 202, "to": 227, "label": "依赖", "title": "AI+XR/AR虚实融合舞台呈现技术 --依赖--> 边缘计算工控机", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 227, "from": 213, "to": 228, "label": "依赖", "title": "多机位虚实合成技术 --依赖--> 绿幕/蓝幕抠像系统", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 228, "from": 207, "to": 229, "label": "生成", "title": "生成式AI虚拟场景构建(AIGC) --生成--> 无限延展虚拟舞台", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 229, "from": 207, "to": 230, "label": "生成", "title": "生成式AI虚拟场景构建(AIGC) --生成--> 地域文化数字场景", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 230, "from": 206, "to": 231, "label": "构建", "title": "数字孪生舞台技术 --构建--> 数字孪生实景模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 231, "from": 207, "to": 232, "label": "生成", "title": "生成式AI虚拟场景构建(AIGC) --生成--> 虚拟场景组件", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 232, "from": 232, "to": 233, "label": "包含", "title": "虚拟场景组件 --包含--> 建筑", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 233, "from": 232, "to": 234, "label": "包含", "title": "虚拟场景组件 --包含--> 自然", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 234, "from": 232, "to": 235, "label": "包含", "title": "虚拟场景组件 --包含--> 特效", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 235, "from": 211, "to": 236, "label": "构建", "title": "数字分身/虚拟人技术 --构建--> 数字分身/虚拟演员", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 236, "from": 207, "to": 237, "label": "生成", "title": "生成式AI虚拟场景构建(AIGC) --生成--> 虚拟特效元素", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 237, "from": 237, "to": 238, "label": "包含", "title": "虚拟特效元素 --包含--> 粒子", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 238, "from": 237, "to": 239, "label": "包含", "title": "虚拟特效元素 --包含--> 光效", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 239, "from": 237, "to": 240, "label": "包含", "title": "虚拟特效元素 --包含--> 流体", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 240, "from": 202, "to": 241, "label": "依托", "title": "AI+XR/AR虚实融合舞台呈现技术 --依托--> 3D资产库", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 241, "from": 241, "to": 242, "label": "包含", "title": "3D资产库 --包含--> 人物", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 242, "from": 241, "to": 243, "label": "包含", "title": "3D资产库 --包含--> 道具", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 243, "from": 241, "to": 244, "label": "包含", "title": "3D资产库 --包含--> 场景", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 244, "from": 207, "to": 245, "label": "生成", "title": "生成式AI虚拟场景构建(AIGC) --生成--> AI生成月令花景/虚拟马群", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 245, "from": 207, "to": 246, "label": "生成", "title": "生成式AI虚拟场景构建(AIGC) --生成--> 丝路虚拟场景(敦煌/波斯/地中海)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 246, "from": 218, "to": 247, "label": "感知", "title": "高速光学动捕相机 --感知--> 演员肢体动作/位置", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 247, "from": 202, "to": 248, "label": "识别", "title": "AI+XR/AR虚实融合舞台呈现技术 --识别--> 演员道具(实体触发物)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 248, "from": 210, "to": 249, "label": "感知", "title": "摄像机追踪与同步技术 --感知--> 摄像机机位/运镜轨迹", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 249, "from": 202, "to": 250, "label": "分析", "title": "AI+XR/AR虚实融合舞台呈现技术 --分析--> 音乐节奏/声纹频率", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 250, "from": 202, "to": 129, "label": "识别", "title": "AI+XR/AR虚实融合舞台呈现技术 --识别--> 节目情绪", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 251, "from": 129, "to": 251, "label": "包含", "title": "节目情绪 --包含--> 科技感", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 252, "from": 202, "to": 252, "label": "适配", "title": "AI+XR/AR虚实融合舞台呈现技术 --适配--> 观众视角/沉浸体验", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 253, "from": 202, "to": 253, "label": "接收", "title": "AI+XR/AR虚实融合舞台呈现技术 --接收--> 实时交互指令", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 254, "from": 253, "to": 254, "label": "包含", "title": "实时交互指令 --包含--> 触摸", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 255, "from": 253, "to": 255, "label": "包含", "title": "实时交互指令 --包含--> 位移", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 256, "from": 253, "to": 256, "label": "包含", "title": "实时交互指令 --包含--> 触发", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 257, "from": 214, "to": 257, "label": "感知", "title": "光影实时匹配技术 --感知--> 环境光照/光影参数", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 258, "from": 209, "to": 258, "label": "输出", "title": "三维实时渲染技术 --输出--> 虚拟场景渲染参数", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 259, "from": 204, "to": 259, "label": "输出", "title": "AI+AR增强现实呈现技术 --输出--> AR叠加层透明度/大小/轨迹", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 260, "from": 208, "to": 260, "label": "输出", "title": "实时空间定位与跟踪技术 --输出--> 空间坐标(6DoF)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 261, "from": 209, "to": 261, "label": "考核", "title": "三维实时渲染技术 --考核--> 渲染帧率/延迟(ms)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 262, "from": 202, "to": 262, "label": "考核", "title": "AI+XR/AR虚实融合舞台呈现技术 --考核--> 虚实融合精度(mm)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 263, "from": 214, "to": 263, "label": "考核", "title": "光影实时匹配技术 --考核--> 光影匹配度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 264, "from": 202, "to": 264, "label": "考核", "title": "AI+XR/AR虚实融合舞台呈现技术 --考核--> 场景切换速度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 265, "from": 202, "to": 265, "label": "考核", "title": "AI+XR/AR虚实融合舞台呈现技术 --考核--> 交互响应延迟", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 266, "from": 211, "to": 266, "label": "采用", "title": "数字分身/虚拟人技术 --采用--> 实时姿态估计算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 267, "from": 208, "to": 267, "label": "采用", "title": "实时空间定位与跟踪技术 --采用--> 空间定位算法(VIO/SLAM)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 268, "from": 207, "to": 268, "label": "采用", "title": "生成式AI虚拟场景构建(AIGC) --采用--> 生成式AI大模型(千问/央视听媒体)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 269, "from": 209, "to": 269, "label": "采用", "title": "三维实时渲染技术 --采用--> 实时渲染优化算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 270, "from": 214, "to": 270, "label": "采用", "title": "光影实时匹配技术 --采用--> 光影估计与匹配模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 271, "from": 213, "to": 271, "label": "采用", "title": "多机位虚实合成技术 --采用--> 智能遮挡处理算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 272, "from": 206, "to": 272, "label": "采用", "title": "数字孪生舞台技术 --采用--> 数字孪生建模算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 273, "from": 211, "to": 273, "label": "采用", "title": "数字分身/虚拟人技术 --采用--> 虚拟人驱动模型", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 274, "from": 202, "to": 274, "label": "采用", "title": "AI+XR/AR虚实融合舞台呈现技术 --采用--> 多源数据融合算法", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 275, "from": 202, "to": 275, "label": "应用于", "title": "AI+XR/AR虚实融合舞台呈现技术 --应用于--> 2025央视春晚", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 276, "from": 202, "to": 276, "label": "应用于", "title": "AI+XR/AR虚实融合舞台呈现技术 --应用于--> 2026央视春晚(主会场/义乌分会场)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 277, "from": 202, "to": 277, "label": "应用于", "title": "AI+XR/AR虚实融合舞台呈现技术 --应用于--> 2026粤港澳大湾区春晚", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 278, "from": 202, "to": 278, "label": "应用于", "title": "AI+XR/AR虚实融合舞台呈现技术 --应用于--> 2026浙江春晚", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 279, "from": 202, "to": 160, "label": "适配", "title": "AI+XR/AR虚实融合舞台呈现技术 --适配--> 歌舞类节目", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 280, "from": 202, "to": 279, "label": "适配", "title": "AI+XR/AR虚实融合舞台呈现技术 --适配--> 创意表演/武术类节目", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 281, "from": 202, "to": 280, "label": "适配", "title": "AI+XR/AR虚实融合舞台呈现技术 --适配--> 文化主题类节目", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 282, "from": 202, "to": 281, "label": "应用于", "title": "AI+XR/AR虚实融合舞台呈现技术 --应用于--> 沉浸式舞台场景", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 283, "from": 202, "to": 282, "label": "实现", "title": "AI+XR/AR虚实融合舞台呈现技术 --实现--> 一步一景动态场景", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 284, "from": 209, "to": 283, "label": "考核", "title": "三维实时渲染技术 --考核--> 渲染帧率(FPS)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 285, "from": 202, "to": 284, "label": "考核", "title": "AI+XR/AR虚实融合舞台呈现技术 --考核--> 系统延迟(ms)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 286, "from": 208, "to": 285, "label": "考核", "title": "实时空间定位与跟踪技术 --考核--> 空间定位精度(mm)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 287, "from": 202, "to": 286, "label": "考核", "title": "AI+XR/AR虚实融合舞台呈现技术 --考核--> 虚实对齐误差", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 288, "from": 206, "to": 287, "label": "考核", "title": "数字孪生舞台技术 --考核--> 场景还原度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 289, "from": 202, "to": 288, "label": "考核", "title": "AI+XR/AR虚实融合舞台呈现技术 --考核--> 交互响应速度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 290, "from": 209, "to": 289, "label": "考核", "title": "三维实时渲染技术 --考核--> 渲染稳定性", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 291, "from": 202, "to": 290, "label": "考核", "title": "AI+XR/AR虚实融合舞台呈现技术 --考核--> 视觉流畅度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 292, "from": 291, "to": 292, "label": "包含节目", "title": "2026央视春晚 --包含节目--> 央视《马上有奇迹》", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 5}, {"id": 293, "from": 292, "to": 293, "label": "采用", "title": "央视《马上有奇迹》 --采用--> XR万马奔腾技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 5}, {"id": 294, "from": 291, "to": 294, "label": "包含节目", "title": "2026央视春晚 --包含节目--> 央视《贺花神》", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 5}, {"id": 295, "from": 294, "to": 295, "label": "采用", "title": "央视《贺花神》 --采用--> AI月令花景技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 5}, {"id": 296, "from": 296, "to": 297, "label": "包含节目", "title": "2026央视春晚义乌分会场 --包含节目--> 央视《世界义乌中国年》", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 6}, {"id": 297, "from": 297, "to": 298, "label": "采用", "title": "央视《世界义乌中国年》 --采用--> 丝路场景技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 6}, {"id": 298, "from": 277, "to": 299, "label": "包含节目", "title": "2026粤港澳大湾区春晚 --包含节目--> 粤港澳《Give Me That》", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 299, "from": 299, "to": 300, "label": "采用", "title": "粤港澳《Give Me That》 --采用--> AR未来感元素技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 300, "from": 278, "to": 301, "label": "采用", "title": "2026浙江春晚 --采用--> 地域文化数字场景技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 301, "from": 302, "to": 303, "label": "包含节目", "title": "蓉港春晚 --包含节目--> 蓉港春晚《精武·双城》", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 7}, {"id": 302, "from": 303, "to": 304, "label": "采用", "title": "蓉港春晚《精武·双城》 --采用--> XR双城联动技术", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 7}, {"id": 303, "from": 202, "to": 305, "label": "由", "title": "AI+XR/AR虚实融合舞台呈现技术 --由--> 舞台视觉设计师设计", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 304, "from": 202, "to": 306, "label": "由", "title": "AI+XR/AR虚实融合舞台呈现技术 --由--> XR技术工程师研发", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 305, "from": 202, "to": 173, "label": "由", "title": "AI+XR/AR虚实融合舞台呈现技术 --由--> AI算法工程师开发", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 306, "from": 209, "to": 307, "label": "由", "title": "三维实时渲染技术 --由--> 实时渲染师优化", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 307, "from": 218, "to": 308, "label": "由", "title": "高速光学动捕相机 --由--> 动捕操作员操作", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 308, "from": 202, "to": 309, "label": "由", "title": "AI+XR/AR虚实融合舞台呈现技术 --由--> 节目导演调度", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 309, "from": 202, "to": 310, "label": "由", "title": "AI+XR/AR虚实融合舞台呈现技术 --由--> 硬件厂商(七维科技/强氧/洲明)提供设备", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 3}, {"id": 310, "from": 311, "to": 178, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现知识查询系统 --包含--> 基础检索模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 311, "from": 311, "to": 179, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现知识查询系统 --包含--> 关系查询模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 312, "from": 311, "to": 312, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现知识查询系统 --包含--> 案例深度解析模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 313, "from": 311, "to": 313, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现知识查询系统 --包含--> 逻辑推理与方案模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 314, "from": 311, "to": 182, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现知识查询系统 --包含--> 可视化展示模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 315, "from": 311, "to": 183, "label": "包含", "title": "AI+XR/AR虚实融合舞台呈现知识查询系统 --包含--> 数据管理模块", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 316, "from": 178, "to": 314, "label": "实现", "title": "基础检索模块 --实现--> 关键词检索技术、设备、案例、节目", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 317, "from": 178, "to": 315, "label": "实现", "title": "基础检索模块 --实现--> 实体详情页展示(全属性+关联知识)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 318, "from": 178, "to": 316, "label": "实现", "title": "基础检索模块 --实现--> 按晚会/技术/设备/案例分类浏览", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 319, "from": 179, "to": 317, "label": "实现", "title": "关系查询模块 --实现--> 查询晚会与XR技术的关联", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 320, "from": 179, "to": 318, "label": "实现", "title": "关系查询模块 --实现--> 查询AI模型与虚拟场景的关联", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 321, "from": 179, "to": 319, "label": "实现", "title": "关系查询模块 --实现--> 查询设备与虚实毫米级对齐的关联", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 322, "from": 179, "to": 320, "label": "实现", "title": "关系查询模块 --实现--> 查询数字孪生与一步一景的关联", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 323, "from": 179, "to": 321, "label": "实现", "title": "关系查询模块 --实现--> 查询地方春晚与XR技术文化表达的关联", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 324, "from": 312, "to": 322, "label": "实现", "title": "案例深度解析模块 --实现--> 单案例全链路拆解(技术→设备→内容→效果)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 325, "from": 312, "to": 323, "label": "实现", "title": "案例深度解析模块 --实现--> 跨晚会技术对比(央视/粤港澳/浙江)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 326, "from": 312, "to": 324, "label": "实现", "title": "案例深度解析模块 --实现--> 技术效果还原(原理→步骤→呈现)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 327, "from": 313, "to": 325, "label": "实现", "title": "逻辑推理与方案模块 --实现--> 根据节目类型推荐XR/AR技术组合", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 328, "from": 313, "to": 326, "label": "实现", "title": "逻辑推理与方案模块 --实现--> 根据效果需求匹配技术与设备", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 329, "from": 313, "to": 327, "label": "实现", "title": "逻辑推理与方案模块 --实现--> 根据文化主题生成虚拟场景设计思路", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 330, "from": 182, "to": 328, "label": "实现", "title": "可视化展示模块 --实现--> 知识图谱可视化(节点-关系动态图)", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 331, "from": 182, "to": 329, "label": "实现", "title": "可视化展示模块 --实现--> 虚实融合技术架构图展示", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 332, "from": 182, "to": 330, "label": "实现", "title": "可视化展示模块 --实现--> 虚实融合技术流程图展示", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 333, "from": 182, "to": 331, "label": "实现", "title": "可视化展示模块 --实现--> 案例效果对比图展示", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 334, "from": 182, "to": 332, "label": "实现", "title": "可视化展示模块 --实现--> 场景分层示意图展示", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 335, "from": 183, "to": 333, "label": "实现", "title": "数据管理模块 --实现--> 知识录入/编辑/审核", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 336, "from": 183, "to": 334, "label": "实现", "title": "数据管理模块 --实现--> 案例扩充、技术更新", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}, {"id": 337, "from": 183, "to": 335, "label": "实现", "title": "数据管理模块 --实现--> 关联关系维护、属性补充", "directed": true, "arrows": {"to": {"enabled": true, "scaleFactor": 0.7}}, "component": 4}];
+
+		let allNodes = initialNodes.map((n) => ({ ...n }));
+		let allEdges = initialEdges.map((e) => ({ ...e }));
+		let nextNodeId = allNodes.length ? Math.max(...allNodes.map((n) => n.id)) + 1 : 1;
+		let nextEdgeId = allEdges.length ? Math.max(...allEdges.map((e) => e.id || 0)) + 1 : 1;
+
+		const nodes = new vis.DataSet([]);
+		const edges = new vis.DataSet([]);
+		const container = document.getElementById("graph");
+		const data = { nodes, edges };
+
+		const searchInput = document.getElementById("searchInput");
+		const searchInfo = document.getElementById("searchInfo");
+		const metaStats = document.getElementById("metaStats");
+		const nodeNameList = document.getElementById("nodeNameList");
+		const pageComponentSelect = document.getElementById("pageComponentSelect");
+		const pageInfo = document.getElementById("pageInfo");
+		const prevPageBtn = document.getElementById("prevPageBtn");
+		const nextPageBtn = document.getElementById("nextPageBtn");
+
+		let componentVisibility = new Set();
+		let currentKeyword = "";
+		let pagedMode = true;
+		let currentPageComponent = null;
+		let focusNodeId = null;
+		let focusEdgeId = null;
+
+		const BASE_NODE_STYLE = {
+			background: "#3e8577",
+			border: "#27534a",
+			fontColor: "#102320",
+		};
+		const BASE_EDGE_STYLE = {
+			line: "#5b7d76",
+			highlight: "#c96f3f",
+			fontColor: "#27453f",
+		};
+
+		function normalize(s) {
+			return (s || "").trim().toLowerCase();
+		}
+
+		function hexToRgb(hex) {
+			const safe = (hex || "").replace("#", "").trim();
+			if (safe.length !== 6) {
+				return [0, 0, 0];
+			}
+			return [
+				parseInt(safe.slice(0, 2), 16),
+				parseInt(safe.slice(2, 4), 16),
+				parseInt(safe.slice(4, 6), 16),
+			];
+		}
+
+		function rgba(hex, alpha) {
+			const [r, g, b] = hexToRgb(hex);
+			return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+		}
+
+		function resetFocusStyles() {
+			const nodeUpdates = nodes.get().map((node) => ({
+				id: node.id,
+				size: 13,
+				color: {
+					background: BASE_NODE_STYLE.background,
+					border: BASE_NODE_STYLE.border,
+					highlight: { background: "#f39b6d", border: "#a14c24" },
+				},
+				font: { color: BASE_NODE_STYLE.fontColor, size: 14, face: "Microsoft YaHei" },
+			}));
+
+			const edgeUpdates = edges.get().map((edge) => ({
+				id: edge.id,
+				color: { color: BASE_EDGE_STYLE.line, highlight: BASE_EDGE_STYLE.highlight },
+				font: { color: BASE_EDGE_STYLE.fontColor, size: 12, strokeWidth: 0, align: "middle", face: "Microsoft YaHei" },
+			}));
+
+			nodes.update(nodeUpdates);
+			edges.update(edgeUpdates);
+		}
+
+		function applyFocusHighlight(selectedId) {
+			if (!selectedId || !nodes.get(selectedId)) {
+				resetFocusStyles();
+				return;
+			}
+
+			const adjacency = new Map();
+			nodes.getIds().forEach((id) => adjacency.set(id, new Set()));
+			edges.get().forEach((edge) => {
+				if (adjacency.has(edge.from) && adjacency.has(edge.to)) {
+					adjacency.get(edge.from).add(edge.to);
+					adjacency.get(edge.to).add(edge.from);
+				}
+			});
+
+			const keepNodes = new Set([selectedId]);
+			(adjacency.get(selectedId) || new Set()).forEach((nb) => keepNodes.add(nb));
+
+			const nodeUpdates = nodes.get().map((node) => {
+				const isSelected = node.id === selectedId;
+				const keep = keepNodes.has(node.id);
+				if (isSelected) {
+					return {
+						id: node.id,
+						size: 16,
+						color: {
+							background: "#f39b6d",
+							border: "#a14c24",
+							highlight: { background: "#f39b6d", border: "#a14c24" },
+						},
+						font: { color: "#102320", size: 15, face: "Microsoft YaHei" },
+					};
+				}
+				if (keep) {
+					return {
+						id: node.id,
+						size: 13,
+						color: {
+							background: BASE_NODE_STYLE.background,
+							border: BASE_NODE_STYLE.border,
+							highlight: { background: "#f39b6d", border: "#a14c24" },
+						},
+						font: { color: BASE_NODE_STYLE.fontColor, size: 14, face: "Microsoft YaHei" },
+					};
+				}
+				return {
+					id: node.id,
+					size: 12,
+					color: {
+						background: rgba(BASE_NODE_STYLE.background, 0.18),
+						border: rgba(BASE_NODE_STYLE.border, 0.2),
+						highlight: {
+							background: rgba(BASE_NODE_STYLE.background, 0.3),
+							border: rgba(BASE_NODE_STYLE.border, 0.3),
+						},
+					},
+					font: { color: rgba(BASE_NODE_STYLE.fontColor, 0.34), size: 13, face: "Microsoft YaHei" },
+				};
+			});
+
+			const edgeUpdates = edges.get().map((edge) => {
+				const connectedToSelected = edge.from === selectedId || edge.to === selectedId;
+				if (connectedToSelected) {
+					return {
+						id: edge.id,
+						color: { color: BASE_EDGE_STYLE.line, highlight: BASE_EDGE_STYLE.highlight },
+						font: { color: BASE_EDGE_STYLE.fontColor, size: 12, strokeWidth: 0, align: "middle", face: "Microsoft YaHei" },
+					};
+				}
+				return {
+					id: edge.id,
+					color: {
+						color: rgba(BASE_EDGE_STYLE.line, 0.14),
+						highlight: rgba(BASE_EDGE_STYLE.line, 0.22),
+					},
+					font: { color: rgba(BASE_EDGE_STYLE.fontColor, 0.25), size: 11, strokeWidth: 0, align: "middle", face: "Microsoft YaHei" },
+				};
+			});
+
+			nodes.update(nodeUpdates);
+			edges.update(edgeUpdates);
+		}
+
+		function applyEdgeFocusHighlight(selectedEdgeId) {
+			if (!selectedEdgeId || !edges.get(selectedEdgeId)) {
+				if (focusNodeId && nodes.get(focusNodeId)) {
+					applyFocusHighlight(focusNodeId);
+				} else {
+					resetFocusStyles();
+				}
+				return;
+			}
+
+			const selectedEdge = edges.get(selectedEdgeId);
+			const keepNodes = new Set([selectedEdge.from, selectedEdge.to]);
+			const nodeUpdates = nodes.get().map((node) => {
+				const keep = keepNodes.has(node.id);
+				if (keep) {
+					return {
+						id: node.id,
+						size: 15,
+						color: {
+							background: "#f39b6d",
+							border: "#a14c24",
+							highlight: { background: "#f39b6d", border: "#a14c24" },
+						},
+						font: { color: "#102320", size: 14, face: "Microsoft YaHei" },
+					};
+				}
+				return {
+					id: node.id,
+					size: 12,
+					color: {
+						background: rgba(BASE_NODE_STYLE.background, 0.16),
+						border: rgba(BASE_NODE_STYLE.border, 0.2),
+						highlight: {
+							background: rgba(BASE_NODE_STYLE.background, 0.26),
+							border: rgba(BASE_NODE_STYLE.border, 0.26),
+						},
+					},
+					font: { color: rgba(BASE_NODE_STYLE.fontColor, 0.3), size: 13, face: "Microsoft YaHei" },
+				};
+			});
+
+			const edgeUpdates = edges.get().map((edge) => {
+				if (edge.id === selectedEdgeId) {
+					return {
+						id: edge.id,
+						width: 2.8,
+						color: { color: "#d36b3f", highlight: "#d36b3f" },
+						font: { color: "#213f39", size: 12, strokeWidth: 0, align: "middle", face: "Microsoft YaHei" },
+					};
+				}
+				return {
+					id: edge.id,
+					width: 1,
+					color: {
+						color: rgba(BASE_EDGE_STYLE.line, 0.12),
+						highlight: rgba(BASE_EDGE_STYLE.line, 0.2),
+					},
+					font: { color: rgba(BASE_EDGE_STYLE.fontColor, 0.22), size: 11, strokeWidth: 0, align: "middle", face: "Microsoft YaHei" },
+				};
+			});
+
+			nodes.update(nodeUpdates);
+			edges.update(edgeUpdates);
+			network.selectEdges([selectedEdgeId]);
+		}
+
+		function getComponentIds() {
+			return [...new Set(allNodes.map((n) => n.component))].sort((a, b) => a - b);
+		}
+
+		function refreshPageControls() {
+			const componentIds = getComponentIds();
+			pageComponentSelect.innerHTML = "";
+
+			componentIds.forEach((cid) => {
+				const option = document.createElement("option");
+				option.value = String(cid);
+				option.textContent = `图谱 ${cid}`;
+				pageComponentSelect.appendChild(option);
+			});
+
+			if (!componentIds.length) {
+				pageInfo.textContent = "暂无可展示分区";
+				prevPageBtn.disabled = true;
+				nextPageBtn.disabled = true;
+				pageComponentSelect.disabled = true;
+				return;
+			}
+
+			if (!currentPageComponent || !componentIds.includes(currentPageComponent)) {
+				currentPageComponent = componentIds[0];
+			}
+
+			const pageIndex = componentIds.indexOf(currentPageComponent);
+			pageComponentSelect.value = String(currentPageComponent);
+			pageComponentSelect.disabled = false;
+			prevPageBtn.disabled = componentIds.length <= 1;
+			nextPageBtn.disabled = componentIds.length <= 1;
+
+			if (pagedMode) {
+				pageInfo.textContent = `第 ${pageIndex + 1} / ${componentIds.length} 页，仅显示图谱 ${currentPageComponent}`;
+			} else {
+				pageInfo.textContent = `总览模式：显示 ${componentIds.length} 个分区`;
+			}
+		}
+
+		function jumpToPageComponent(targetComponent) {
+			const componentIds = getComponentIds();
+			if (!componentIds.includes(targetComponent)) {
+				return;
+			}
+			currentPageComponent = targetComponent;
+			if (pagedMode) {
+				componentVisibility = new Set([currentPageComponent]);
+			}
+			applyFilters();
+			refreshPageControls();
+			network.fit({ animation: true });
+		}
+
+		function getActiveComponentForInsert() {
+			const componentIds = getComponentIds();
+			if (!componentIds.length) {
+				return 1;
+			}
+			if (pagedMode && currentPageComponent && componentIds.includes(currentPageComponent)) {
+				return currentPageComponent;
+			}
+			const visibleComponents = [...componentVisibility].filter((cid) => componentIds.includes(cid));
+			if (visibleComponents.length) {
+				return visibleComponents[0];
+			}
+			return componentIds[0];
+		}
+
+		function findBlankPositionForNewNode(componentId) {
+			const center = network.getViewPosition();
+			const visibleNodes = nodes
+				.get()
+				.filter((n) => n.component === componentId)
+				.map((n) => ({ x: n.x || 0, y: n.y || 0 }));
+
+			if (!visibleNodes.length) {
+				return { x: center.x, y: center.y };
+			}
+
+			const minGap = 120;
+			let bestPoint = { x: center.x, y: center.y };
+			let bestScore = -1;
+
+			for (let ring = 0; ring < 14; ring += 1) {
+				const radius = 40 + ring * 50;
+				const samples = 8 + ring * 4;
+				for (let i = 0; i < samples; i += 1) {
+					const angle = (Math.PI * 2 * i) / samples;
+					const candidate = {
+						x: center.x + Math.cos(angle) * radius,
+						y: center.y + Math.sin(angle) * radius,
+					};
+
+					let nearest = Number.POSITIVE_INFINITY;
+					for (const p of visibleNodes) {
+						const dx = candidate.x - p.x;
+						const dy = candidate.y - p.y;
+						const dist = Math.hypot(dx, dy);
+						nearest = Math.min(nearest, dist);
+					}
+
+					if (nearest >= minGap) {
+						return candidate;
+					}
+					if (nearest > bestScore) {
+						bestScore = nearest;
+						bestPoint = candidate;
+					}
+				}
+			}
+
+			return bestPoint;
+		}
+
+		function rebuildComponents() {
+			const adjacency = new Map();
+			allNodes.forEach((n) => adjacency.set(n.id, new Set()));
+			allEdges.forEach((e) => {
+				if (adjacency.has(e.from) && adjacency.has(e.to)) {
+					adjacency.get(e.from).add(e.to);
+					adjacency.get(e.to).add(e.from);
+				}
+			});
+
+			const visited = new Set();
+			let componentId = 0;
+			for (const n of allNodes) {
+				if (visited.has(n.id)) {
+					continue;
+				}
+				componentId += 1;
+				const queue = [n.id];
+				visited.add(n.id);
+				while (queue.length) {
+					const cur = queue.shift();
+					const node = allNodes.find((item) => item.id === cur);
+					if (node) {
+						node.component = componentId;
+					}
+					(adjacency.get(cur) || new Set()).forEach((nb) => {
+						if (!visited.has(nb)) {
+							visited.add(nb);
+							queue.push(nb);
+						}
+					});
+				}
+			}
+
+			allEdges = allEdges.map((e) => {
+				const fromNode = allNodes.find((n) => n.id === e.from);
+				return { ...e, component: fromNode ? fromNode.component : 1 };
+			});
+
+			const allComponentIds = getComponentIds();
+			if (pagedMode) {
+				if (!allComponentIds.length) {
+					currentPageComponent = null;
+					componentVisibility = new Set();
+				} else {
+					if (!currentPageComponent || !allComponentIds.includes(currentPageComponent)) {
+						currentPageComponent = allComponentIds[0];
+					}
+					componentVisibility = new Set([currentPageComponent]);
+				}
+			} else {
+				componentVisibility = new Set(allComponentIds);
+			}
+		}
+
+		function partitionLayout() {
+			const byComponent = new Map();
+			allNodes.forEach((n) => {
+				if (!byComponent.has(n.component)) {
+					byComponent.set(n.component, []);
+				}
+				byComponent.get(n.component).push(n);
+			});
+
+			const componentIds = [...byComponent.keys()].sort((a, b) => a - b);
+			const cols = Math.max(1, Math.ceil(Math.sqrt(componentIds.length)));
+			const maxGroupSize = componentIds.reduce((maxSize, cid) => {
+				const size = (byComponent.get(cid) || []).length;
+				return Math.max(maxSize, size);
+			}, 1);
+			const densityScale = Math.min(2.5, Math.max(1.1, Math.sqrt(maxGroupSize / 20)));
+			const cellW = Math.round(860 * densityScale);
+			const cellH = Math.round(660 * densityScale);
+
+			componentIds.forEach((cid, index) => {
+				const group = byComponent.get(cid) || [];
+				const col = index % cols;
+				const row = Math.floor(index / cols);
+				const centerX = col * cellW + cellW / 2;
+				const centerY = row * cellH + cellH / 2;
+
+				let ringIndex = 0;
+				let indexInRing = 0;
+				let ringCapacity = 8;
+
+				group.forEach((node) => {
+					if (indexInRing >= ringCapacity) {
+						ringIndex += 1;
+						indexInRing = 0;
+						ringCapacity = 8 + ringIndex * 5;
+					}
+
+					const baseRadius = 92 + ringIndex * 126;
+					const angle = (Math.PI * 2 * indexInRing) / Math.max(1, ringCapacity) + (ringIndex % 2) * 0.22;
+					const seed = (node.id * 1103515245 + cid * 12345) & 0x7fffffff;
+					const radialJitter = (seed % 29) - 14;
+					const tangentialJitter = ((Math.floor(seed / 19) % 13) - 6) * 0.015;
+
+					node.x = centerX + Math.cos(angle + tangentialJitter) * (baseRadius + radialJitter);
+					node.y = centerY + Math.sin(angle + tangentialJitter) * (baseRadius + radialJitter);
+
+					indexInRing += 1;
+				});
+			});
+		}
+
+		function applyFilters() {
+			const keyword = normalize(currentKeyword);
+			const componentAllowed = new Set(componentVisibility);
+
+			let visibleNodeIds = new Set();
+			let visibleEdgeIds = new Set();
+
+			const componentNodes = allNodes.filter((n) => componentAllowed.has(n.component));
+			const componentNodeIdSet = new Set(componentNodes.map((n) => n.id));
+
+			if (!keyword) {
+				componentNodes.forEach((n) => visibleNodeIds.add(n.id));
+				allEdges.forEach((e) => {
+					if (componentAllowed.has(e.component) && componentNodeIdSet.has(e.from) && componentNodeIdSet.has(e.to)) {
+						visibleEdgeIds.add(e.id);
+					}
+				});
+				searchInfo.textContent = "当前未启用搜索过滤";
+			} else {
+				const matched = componentNodes.filter((n) => normalize(n.label).includes(keyword));
+				const matchedSet = new Set(matched.map((n) => n.id));
+
+				allEdges.forEach((e) => {
+					if (!componentAllowed.has(e.component)) {
+						return;
+					}
+					const hit = matchedSet.has(e.from) || matchedSet.has(e.to);
+					if (hit) {
+						visibleEdgeIds.add(e.id);
+						if (componentNodeIdSet.has(e.from)) {
+							visibleNodeIds.add(e.from);
+						}
+						if (componentNodeIdSet.has(e.to)) {
+							visibleNodeIds.add(e.to);
+						}
+					}
+				});
+
+				matched.forEach((n) => visibleNodeIds.add(n.id));
+				searchInfo.textContent = `匹配节点 ${matched.length} 个，显示其相关关系。`;
+			}
+
+			nodes.clear();
+			edges.clear();
+			nodes.add(allNodes.filter((n) => visibleNodeIds.has(n.id)));
+			edges.add(allEdges.filter((e) => visibleEdgeIds.has(e.id)));
+
+			metaStats.textContent = `节点数: ${allNodes.length} | 关系数: ${allEdges.length} | 图谱分区: ${new Set(allNodes.map((n) => n.component)).size} | 当前显示节点: ${nodes.length}`;
+
+			if (focusNodeId && visibleNodeIds.has(focusNodeId)) {
+				applyFocusHighlight(focusNodeId);
+			} else {
+				focusNodeId = null;
+				applyFocusHighlight(null);
+			}
+
+			if (focusEdgeId && visibleEdgeIds.has(focusEdgeId)) {
+				applyEdgeFocusHighlight(focusEdgeId);
+			} else {
+				focusEdgeId = null;
+				applyEdgeFocusHighlight(null);
+			}
+		}
+
+		function refreshNodeNameList() {
+			nodeNameList.innerHTML = "";
+			allNodes
+				.slice()
+				.sort((a, b) => a.label.localeCompare(b.label, "zh-CN"))
+				.forEach((n) => {
+					const option = document.createElement("option");
+					option.value = n.label;
+					nodeNameList.appendChild(option);
+				});
+		}
+
+		function downloadText(filename, content, mime) {
+			const blob = new Blob([content], { type: mime });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = filename;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			URL.revokeObjectURL(url);
+		}
+
+		function showGraphError(err) {
+			const message = err && err.message ? err.message : String(err);
+			const graph = document.getElementById("graph");
+			graph.innerHTML = `<div class="graph-error">图谱初始化失败：${message}<br/>请刷新页面或将报错信息反馈给开发者。</div>`;
+		}
+
+		const options = {
+			layout: {
+				improvedLayout: true
+			},
+			physics: {
+				enabled: false
+			},
+			nodes: {
+				shape: "dot",
+				size: 13,
+				color: {
+					background: "#3e8577",
+					border: "#27534a",
+					highlight: { background: "#f39b6d", border: "#a14c24" }
+				},
+				font: {
+					color: "#102320",
+					size: 14,
+					face: "Microsoft YaHei"
+				}
+			},
+			edges: {
+				arrows: { to: { enabled: false } },
+				smooth: { type: "continuous" },
+				color: { color: "#5b7d76", highlight: "#c96f3f" },
+				font: {
+					color: "#27453f",
+					size: 12,
+					strokeWidth: 0,
+					align: "middle",
+					face: "Microsoft YaHei"
+				}
+			},
+			interaction: {
+				hover: true,
+				tooltipDelay: 120,
+				navigationButtons: true,
+				keyboard: true
+			}
+		};
+
+		const network = new vis.Network(container, data, options);
+		nodes.add(allNodes);
+		edges.add(allEdges);
+
+		network.on("selectNode", (params) => {
+			focusEdgeId = null;
+			focusNodeId = params.nodes && params.nodes.length ? params.nodes[0] : null;
+			applyFocusHighlight(focusNodeId);
+		});
+
+		network.on("deselectNode", () => {
+			focusNodeId = null;
+			applyFocusHighlight(null);
+		});
+
+		network.on("selectEdge", (params) => {
+			focusNodeId = null;
+			const edgeId = params.edges && params.edges.length ? params.edges[0] : null;
+			focusEdgeId = edgeId;
+			applyFocusHighlight(null);
+			applyEdgeFocusHighlight(edgeId);
+		});
+
+		network.on("deselectEdge", () => {
+			focusEdgeId = null;
+			applyEdgeFocusHighlight(null);
+		});
+
+		network.on("click", (params) => {
+			if (!params.nodes || !params.nodes.length) {
+				focusNodeId = null;
+				applyFocusHighlight(null);
+			}
+			if (!params.edges || !params.edges.length) {
+				focusEdgeId = null;
+				applyEdgeFocusHighlight(null);
+			}
+		});
+
+		document.getElementById("searchBtn").addEventListener("click", () => {
+			currentKeyword = searchInput.value;
+			applyFilters();
+			network.fit({ animation: true });
+		});
+
+		document.getElementById("clearSearchBtn").addEventListener("click", () => {
+			searchInput.value = "";
+			currentKeyword = "";
+			applyFilters();
+		});
+
+		document.getElementById("enablePagedMode").addEventListener("click", () => {
+			pagedMode = true;
+			const componentIds = getComponentIds();
+			if (!currentPageComponent || !componentIds.includes(currentPageComponent)) {
+				currentPageComponent = componentIds[0] || null;
+			}
+			componentVisibility = currentPageComponent ? new Set([currentPageComponent]) : new Set();
+			applyFilters();
+			refreshPageControls();
+			network.fit({ animation: true });
+		});
+
+		document.getElementById("enableOverviewMode").addEventListener("click", () => {
+			pagedMode = false;
+			componentVisibility = new Set(getComponentIds());
+			applyFilters();
+			refreshPageControls();
+			network.fit({ animation: true });
+		});
+
+		pageComponentSelect.addEventListener("change", () => {
+			const target = Number(pageComponentSelect.value);
+			if (!Number.isNaN(target)) {
+				jumpToPageComponent(target);
+			}
+		});
+
+		prevPageBtn.addEventListener("click", () => {
+			const componentIds = getComponentIds();
+			if (!componentIds.length) {
+				return;
+			}
+			const curIndex = Math.max(0, componentIds.indexOf(currentPageComponent));
+			const nextIndex = (curIndex - 1 + componentIds.length) % componentIds.length;
+			jumpToPageComponent(componentIds[nextIndex]);
+		});
+
+		nextPageBtn.addEventListener("click", () => {
+			const componentIds = getComponentIds();
+			if (!componentIds.length) {
+				return;
+			}
+			const curIndex = Math.max(0, componentIds.indexOf(currentPageComponent));
+			const nextIndex = (curIndex + 1) % componentIds.length;
+			jumpToPageComponent(componentIds[nextIndex]);
+		});
+
+		document.getElementById("addNodeBtn").addEventListener("click", () => {
+			const labelInput = document.getElementById("newNodeLabel");
+			const descInput = document.getElementById("newNodeDesc");
+			const label = (labelInput.value || "").trim();
+			const desc = (descInput.value || "").trim();
+			if (!label) {
+				alert("节点名称不能为空。");
+				return;
+			}
+			const existed = allNodes.find((n) => normalize(n.label) === normalize(label));
+			if (existed) {
+				alert("已存在同名节点，请更换名称。");
+				return;
+			}
+
+			const targetComponent = getActiveComponentForInsert();
+			const pos = findBlankPositionForNewNode(targetComponent);
+			const newNodeId = nextNodeId++;
+
+			allNodes.push({
+				id: newNodeId,
+				label,
+				title: desc || label,
+				component: targetComponent,
+				x: pos.x,
+				y: pos.y,
+			});
+
+			if (pagedMode) {
+				currentPageComponent = targetComponent;
+				componentVisibility = new Set([targetComponent]);
+			} else {
+				componentVisibility.add(targetComponent);
+			}
+			refreshPageControls();
+			refreshNodeNameList();
+			applyFilters();
+
+			focusNodeId = newNodeId;
+			network.selectNodes([newNodeId]);
+			network.focus(newNodeId, { scale: 1.05, animation: { duration: 280, easingFunction: "easeInOutQuad" } });
+			applyFocusHighlight(newNodeId);
+
+			labelInput.value = "";
+			descInput.value = "";
+		});
+
+		document.getElementById("addRelationBtn").addEventListener("click", () => {
+			const sourceName = (document.getElementById("relSource").value || "").trim();
+			const targetName = (document.getElementById("relTarget").value || "").trim();
+			const relationLabel = (document.getElementById("relLabel").value || "").trim();
+			const direction = document.getElementById("relDirection").value;
+			if (!sourceName || !targetName || !relationLabel) {
+				alert("请完整填写起点、终点和关系名称。");
+				return;
+			}
+
+			const srcNode = allNodes.find((n) => n.label === sourceName);
+			const dstNode = allNodes.find((n) => n.label === targetName);
+			if (!srcNode || !dstNode) {
+				alert("起点或终点节点不存在，请先创建节点或从候选中选择。");
+				return;
+			}
+
+			const directed = direction === "directed";
+			const duplicate = allEdges.some((e) => {
+				if (e.label !== relationLabel || !!e.directed !== directed) {
+					return false;
+				}
+				if (directed) {
+					return e.from === srcNode.id && e.to === dstNode.id;
+				}
+				return (
+					(e.from === srcNode.id && e.to === dstNode.id) ||
+					(e.from === dstNode.id && e.to === srcNode.id)
+				);
+			});
+
+			if (duplicate) {
+				alert("该关系已存在，未重复创建。");
+				return;
+			}
+
+			const newEdgeId = nextEdgeId++;
+			allEdges.push({
+				id: newEdgeId,
+				from: srcNode.id,
+				to: dstNode.id,
+				label: relationLabel,
+					title: directed
+						? `${sourceName} --${relationLabel}--> ${targetName}`
+						: `${sourceName} --${relationLabel}-- ${targetName}`,
+				directed,
+					arrows: directed
+						? { to: { enabled: true, scaleFactor: 0.7 } }
+						: { to: { enabled: false } },
+			});
+
+			rebuildComponents();
+			partitionLayout();
+			const insertedEdge = allEdges.find((e) => e.id === newEdgeId);
+			if (insertedEdge) {
+				currentPageComponent = insertedEdge.component;
+				if (pagedMode) {
+					componentVisibility = new Set([insertedEdge.component]);
+				} else {
+					componentVisibility.add(insertedEdge.component);
+				}
+			}
+			refreshPageControls();
+			focusNodeId = null;
+			applyFilters();
+
+			focusEdgeId = newEdgeId;
+			network.unselectAll();
+			network.selectEdges([newEdgeId]);
+			applyEdgeFocusHighlight(newEdgeId);
+			const fromNodePos = allNodes.find((n) => n.id === srcNode.id);
+			const toNodePos = allNodes.find((n) => n.id === dstNode.id);
+			if (fromNodePos && toNodePos) {
+				network.moveTo({
+					position: {
+						x: ((fromNodePos.x || 0) + (toNodePos.x || 0)) / 2,
+						y: ((fromNodePos.y || 0) + (toNodePos.y || 0)) / 2,
+					},
+					scale: 1.05,
+					animation: { duration: 300, easingFunction: "easeInOutQuad" },
+				});
+			} else {
+				network.fit({ animation: true });
+			}
+
+			document.getElementById("relLabel").value = "";
+		});
+
+		document.getElementById("exportJsonBtn").addEventListener("click", () => {
+			const payload = {
+				title: document.title,
+				nodes: allNodes,
+				edges: allEdges,
+			};
+			downloadText("knowledge_graph_snapshot.json", JSON.stringify(payload, null, 2), "application/json;charset=utf-8");
+		});
+
+		document.getElementById("exportCsvBtn").addEventListener("click", () => {
+			const idToLabel = new Map(allNodes.map((n) => [n.id, n.label]));
+			const rows = ["节点A,关系,节点B,方向"];
+			allEdges.forEach((e) => {
+				const a = idToLabel.get(e.from) || "";
+				const b = idToLabel.get(e.to) || "";
+				const direction = e.directed ? "有向" : "无向";
+				rows.push(`${a},${e.label},${b},${direction}`);
+			});
+			downloadText("knowledge_graph_snapshot.csv", rows.join("\n"), "text/csv;charset=utf-8");
+		});
+
+		try {
+			rebuildComponents();
+			partitionLayout();
+			refreshPageControls();
+			refreshNodeNameList();
+			applyFilters();
+			network.fit({ animation: true });
+		} catch (err) {
+			console.error(err);
+			showGraphError(err);
+		}
+	</script>
+</body>
+</html>
